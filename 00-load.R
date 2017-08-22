@@ -1,0 +1,240 @@
+library(tidyverse)
+# Set working directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# Team
+RAPTORS <- c("dec@u.northwestern.edu",
+             "daehan.lee@northwestern.edu",
+             "erik.andersen@northwestern.edu",
+             "stefanzdraljevic2018@u.northwestern.edu")
+
+# Island Coordinates
+OAHU <- c(-158.3617,21.1968,-157.5117,21.7931)
+KAUAI <- c(-159.9362, 21.6523, -159.1782, 22.472)
+MOLOKAI <- c(-157.327, 21.0328, -156.685, 21.2574)
+MAUI <- c(-156.7061, 20.4712, -155.9289, 21.0743)
+BIG_ISLAND <- c(-156.1346, 18.6619, -154.6985, 20.4492)
+
+filter_box <- function(longitude, latitude, coords) {
+  between(longitude, coords[1], coords[3]) &
+    between(latitude, coords[2], coords[4]) &
+    !is.na(longitude)
+}
+
+FtoC <- function(F) {
+  (F - 32)*(5/9)
+}
+
+# Read in C-labels
+sc <- readr::read_csv("data/sample_collection.csv") %>%
+  dplyr::mutate(c_label = stringr::str_to_upper(c_label)) %>%
+  dplyr::filter(project != "Worm Meeting Collection") %>%
+  dplyr::rename(sampled_by = created_by) %>%
+  dplyr::select(-updated_at,
+                -system_created_at,
+                -system_updated_at,
+                -date) %>%
+  dplyr::mutate(datetime = lubridate::ymd_hms(created_at, tz = "HST")) %>%
+  dplyr::mutate(date = lubridate::date(created_at)) %>%
+  dplyr::select(-created_at) %>%
+  # Label substrate moisture issue (moisture meters were on potentially wrong settings at times before 2017-08-09)
+  dplyr::mutate(substrate_moisture_ = ifelse(substrate_moisture_ == -1, NA, substrate_moisture_)) %>%
+  dplyr::mutate(substrate_moisture_issue = !(date %within% interval("2017-08-09", "2017-08-31"))) %>%
+  # Two observations had a C > 50; Clearly wrong.
+  dplyr::mutate(substrate_temperature_c = ifelse(substrate_temperature_c == 100, NA, substrate_temperature_c)) %>%
+  # Fix Fahrenheit observations
+  dplyr::mutate(substrate_temperature_c = ifelse(substrate_temperature_c > 35,
+                                                 FtoC(substrate_temperature_c),
+                                                 substrate_temperature_c)) %>%
+  # Fix substrate_temp_c when C < 9
+  dplyr::mutate(substrate_temperature_c = ifelse(substrate_temperature_c < 9,
+                                                 NA,
+                                                 substrate_temperature_c)) %>%
+  # Fix ambient temp F to C
+  dplyr::mutate(ambient_temperature_c = ifelse(ambient_temperature_c > 50,
+                                               FtoC(ambient_temperature_c),
+                                               ambient_temperature_c))
+
+# Read in S-labels
+po <- readr::read_csv("data/plating_out.csv") %>%
+  dplyr::select(c_label_id = c_label,
+                po_id = fulcrum_id,
+                po_created_at = system_created_at,
+                po_created_by = created_by,
+                worms_on_sample,
+                approximate_number_of_worms,
+                males_observed,
+                dauers_on_sample,
+                approximate_number_of_worms,
+                po_date = date,
+                po_time = time)
+
+# Read in data from photos
+# comm <- paste0("exiftool -coordFormat '%+.6f' -csv -ext jpg ",
+#                getwd(),
+#                "/data/photos/id/*")
+
+# Exif Data
+# exif <- readr::read_csv(pipe(comm)) %>%
+#   dplyr::mutate(SourceFile = stringr::str_replace(basename(SourceFile), ".jpg", "")) %>%
+#   dplyr::select(sample_photo = SourceFile,
+#                 altitude = GPSAltitude,
+#                 latitude = GPSLatitude,
+#                 longitude = GPSLongitude,
+#                 ExposureTime,
+#                 Artist,
+#                 Aperture,
+#                 BrightnessValue,
+#                 PhotoDate = DateCreated,
+#                 FOV) %>%
+#   dplyr::mutate(altitude =  as.numeric(stringr::str_replace(altitude, " m", ""))) %>%
+#   dplyr::mutate(FOV =  as.numeric(stringr::str_replace(FOV, " deg", ""))) %>%
+#   dplyr::group_by(sample_photo) %>%
+#   # Only retain data from one sample photo.
+#   dplyr::distinct(.keep_all=T)
+# save(file = "data/exif.Rda", exif)
+load("data/exif.Rda")
+
+# Join Data
+df <- dplyr::full_join(po, sc, by = c("c_label_id" = "fulcrum_id")) %>%
+  dplyr::rename(record_latitude = latitude, record_longitude = longitude) %>%
+  dplyr::select(c_label,
+                everything(),
+                -c_label_id,
+                -sample_photo_url) %>%
+  dplyr::left_join(exif) %>%
+  # In rare cases, lat/lon not with photo; fix.
+  dplyr::mutate(latitude = ifelse(is.na(latitude), record_latitude, latitude)) %>%
+  dplyr::mutate(longitude = ifelse(is.na(longitude), record_longitude, longitude)) %>%
+  dplyr::mutate(ambient_temperature_c = as.numeric(ambient_temperature_c)) %>%
+  dplyr::mutate(ambient_temperature_c = ifelse(ambient_temperature_c > 70,
+                                               ((5/9)*(ambient_temperature_c-32)),
+                                               ambient_temperature_c)) %>%
+  dplyr::mutate_each(funs(as.numeric), dplyr::starts_with("gps")) %>%
+  dplyr::mutate(team = ifelse(sampled_by %in% RAPTORS, "RAPTORS", "MOANA")) %>%
+  dplyr::mutate(worms_on_sample = ifelse(is.na(worms_on_sample), "?", worms_on_sample)) %>%
+  dplyr::filter(!is.na(c_label)) %>%
+  dplyr::select(-assigned_to,
+                -status,
+                -Artist)
+
+# Generate dataset mapping C-labels to S-labels
+po_slabels <- readr::read_csv("data/plating_out_s_labeled_plates.csv") %>%
+  dplyr::select(fulcrum_parent_id, s_label) %>%
+  dplyr::left_join(df, by = c("fulcrum_parent_id" = "po_id")) %>%
+  dplyr::select(c_label,
+                s_label,
+                worms_on_sample,
+                males_observed,
+                dauers_on_sample,
+                approximate_number_of_worms,
+                po_date,
+                po_time,
+                longitude,
+                latitude,
+                substrate_temperature_c,
+                substrate_moisture_,
+                ambient_humidity_,
+                ambient_temperature_c,
+                sampled_by)
+
+issues <- list(
+# C-labels with no S-labels
+c_label_no_slabel = po_slabels %>%
+  dplyr::filter(is.na(s_label)) %>%
+  dplyr::select(c_label),
+dup_c_label = df %>%
+  dplyr::group_by(c_label) %>%
+  dplyr::filter(n() > 1) %>% dplyr::select(c_label, po_id) %>% 
+  dplyr::distinct(.keep_all=T),
+# S-labels with no C-labels
+s_label_no_clabel = po_slabels %>%
+  dplyr::filter(is.na(c_label)) %>%
+  dplyr::select(s_label)
+)
+
+po_slabels <- po_slabels %>% 
+              dplyr::filter(!is.na(c_label), !is.na(s_label))
+
+# Add Nested S-labels
+df <- dplyr::left_join(df, 
+                       po_slabels %>%
+                         dplyr::select(c_label, s_label) %>%
+                         dplyr::group_by(c_label) %>%
+                         dplyr::summarize(s_label_cnt = length(s_label), 
+                                          s_label = paste0(s_label, collapse = ","))) %>%
+  dplyr::select(c_label, s_label, s_label_cnt, everything(), -po_id)
+
+ 
+# Samples collected that were never processed.
+issues[["c_label_never_processed"]] = df %>% 
+  dplyr::filter(worms_on_sample == "?") %>%
+  dplyr::select(c_label)
+
+
+
+# Creat Island Column
+df$island <- "?"
+df[filter_box(df$longitude, df$latitude, OAHU), "island"] <- "OAHU"
+df[filter_box(df$longitude, df$latitude, KAUAI), "island"] <- "KAUAI"
+df[filter_box(df$longitude, df$latitude, MOLOKAI), "island"] <- "MOLOKAI"
+df[filter_box(df$longitude, df$latitude, MAUI), "island"] <- "MAUI"
+df[filter_box(df$longitude, df$latitude, BIG_ISLAND), "island"] <- "BIG_ISLAND"
+
+# Fix errant GPS locations from team Moana
+df[df$island == "BIG_ISLAND" & df$team == "MOANA" , c("latitude", "longitude")] <- NA
+df[df$island == "BIG_ISLAND" & df$team == "MOANA" & !is.na(df$island),"island"] <- "MAUI"
+
+# Create Trail Column
+df$trail <- NA
+
+
+# photo_comms <- df %>% dplyr::mutate(sample_photo = str_split(sample_photo, ",")) %>%
+#   dplyr::select(-s_label) %>%
+#   dplyr::select(c_label, sample_photo, substrate) %>%
+#   tidyr::unnest() %>% 
+#   dplyr::group_by(c_label) %>%
+#   dplyr::mutate(comm = paste0("cp data/photos/id/",
+#                               sample_photo,
+#                               ".jpg",
+#                               " ",
+#                               "data/photos/c/",
+#                               c_label,
+#                               ".",
+#                               stringr::str_to_lower(str_replace_all(substrate, "[^[:alnum:]]", "_")),
+#                               ".",
+#                               dplyr::row_number(c_label),
+#                               ".jpg")) %>%
+#   
+#   dplyr::select(-c_label, comm)
+# 
+# 
+# # Fix images
+# lapply(photo_comms, system)
+
+# Summarize
+summary <- df %>% dplyr::group_by(island, worms_on_sample) %>% 
+       dplyr::summarize(n = n()) %>%
+       tidyr::spread(worms_on_sample, n, fill = 0) %>%
+       dplyr::mutate(Total = (`?` + `No` + `Tracks` + `Yes`),
+                     Yes_Rate = round((`Yes` / `Total`), 3),
+                     Yes_Track_Rate = round(((Yes + Tracks)/Total), 3),
+                     Loss_Rate = round(`?`/`Total`, 3)) %>%
+       dplyr::ungroup()
+
+summary_aggregated <- summary %>% dplyr::summarize(island = "HAWAII (STATE TOTAL)",
+                             `?` = sum(`?`),
+                             No = sum(No),
+                             Yes = sum(Yes),
+                             Tracks = sum(Tracks),
+                             Total = sum(Total),
+                             Yes_Rate = round((sum(Yes)/sum(Total)), 3),
+                             Yes_Track_Rate= round(sum(Yes+Tracks)/sum(Total), 3),
+                             Loss_Rate = round(sum(`?`) / sum(Total), 3))
+
+summary <- rbind(summary, summary_aggregated)
+
+# redefine
+cso <- po_slabels
+
+save(file = "data/df.Rda", summary, df, cso)

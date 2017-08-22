@@ -1,0 +1,143 @@
+---
+title: "Hawaii Collection Trip Preliminary Analysis"
+author: "Dan Cook"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: united
+    toc: yes
+  pdf_document: 
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+require(knitr)
+opts_knit$set(progress=TRUE)
+
+opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, print=FALSE)
+opts_chunk$set(results="asis")
+opts_chunk$set(cache=TRUE,cache.path="cache/")
+opts_chunk$set(fig.path="figure/",dev=c("png", "svg"))
+
+```
+
+# Overall Summary
+
+## Island Summary
+
+```{r island_summary}
+library(tidyverse)
+load("data/df.Rda")
+
+knitr::kable(summary)
+
+```
+
+## C-label Summary
+
+```{r overall_summary}
+
+cso %>%
+  dplyr::group_by(c_label) %>%
+  dplyr::mutate(n = n()) %>%
+  dplyr::ungroup() %>%
+  dplyr::summarize(c_label_count = length(unique(c_label)),
+                   s_label_count = mean(n()),
+                   s_labels_per_plate = mean(n)) %>%
+  knitr::kable()
+
+```
+
+# Variable Summaries
+
+## Substrate Moisture
+
+```{r substrate_moisture}
+
+ggplot(df) +
+  geom_histogram(aes(x = substrate_moisture_)) +
+  labs(x = "Substrate Moisture (C)", y = "Count") +
+  facet_grid(substrate_moisture_issue~.) +
+  theme_bw()
+
+```
+
+* On Tuesday (2017-08-08) we discovered that the moisture meter output varies depending on the mode that was set. The histogram above displays values based on those that have these issues.
+
+## Substrate Temperature
+
+```{r substrate_temperature}
+
+ggplot(df) +
+  geom_histogram(aes(x = substrate_temperature_c), bins=50) +
+  labs(x = "Substrate Temperature (C)", y = "Count") +
+  theme_bw()
+
+```
+
+* Substrate temperature < 9 and == 100 NA'd
+
+## Ambient Humidty
+
+```{r ambient_humidity}
+
+ggplot(df) +
+  geom_histogram(aes(x = ambient_humidity_), bins=50) +
+  labs(x = "Ambient Humidity (C)", y = "Count") +
+  theme_bw()
+
+```
+
+```{r ambient_temperature_c}
+
+ggplot(df) +
+  geom_histogram(aes(x = ambient_temperature_c), bins=30) +
+  labs(x = "Ambient Temperature (C)", y = "Count") +
+  theme_bw()
+
+```
+
+
+## Daily Collections
+
+```{r 2017-08-02}
+library(leaflet)
+# devtools::install_github("wch/webshot")
+library(webshot)
+
+  
+width <- 20
+height <- 20
+  
+icons <- iconList(
+  red = makeIcon(
+    iconUrl = "https://storage.googleapis.com/andersenlab.org/img/red.svg",
+    iconWidth = width, iconHeight = height,
+    popupAnchorX = 0.00001, popupAnchorY = -height+13,
+    iconAnchorX = width/2, iconAnchorY = height),
+  blue = makeIcon(
+    iconUrl = "https://storage.googleapis.com/andersenlab.org/img/blue.svg",
+    iconWidth = width, iconHeight = height,
+    popupAnchorX = 0.00001, popupAnchorY = -height+13,
+    iconAnchorX = width/2, iconAnchorY = height)
+  )
+
+
+duse <- df %>%
+  dplyr::filter(date == "2017-08-02")
+
+m <- leaflet(data = duse) %>% 
+    addTiles( 
+    paste0( 
+      "https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=", 
+      jsonlite::read_json("thunderforest.json")$key)  
+    ) %>%
+  addMarkers(~longitude, ~latitude, popup = duse$c_label, 
+             icon = ~icons['red'] )
+
+htmlwidgets::saveWidget(m, "temp.html", selfcontained = FALSE)
+webshot::webshot("temp.html", file = "map.png",
+        cliprect = "viewport", vwidth = 1000, vheight = 1000)
+  
+```
+
