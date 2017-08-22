@@ -1,4 +1,6 @@
 library(tidyverse)
+library(lubridate)
+library(geosphere)
 # Set working directory
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
@@ -8,12 +10,7 @@ RAPTORS <- c("dec@u.northwestern.edu",
              "erik.andersen@northwestern.edu",
              "stefanzdraljevic2018@u.northwestern.edu")
 
-# Island Coordinates
-OAHU <- c(-158.3617,21.1968,-157.5117,21.7931)
-KAUAI <- c(-159.9362, 21.6523, -159.1782, 22.472)
-MOLOKAI <- c(-157.327, 21.0328, -156.685, 21.2574)
-MAUI <- c(-156.7061, 20.4712, -155.9289, 21.0743)
-BIG_ISLAND <- c(-156.1346, 18.6619, -154.6985, 20.4492)
+
 
 filter_box <- function(longitude, latitude, coords) {
   between(longitude, coords[1], coords[3]) &
@@ -116,7 +113,12 @@ df <- dplyr::full_join(po, sc, by = c("c_label_id" = "fulcrum_id")) %>%
   dplyr::filter(!is.na(c_label)) %>%
   dplyr::select(-assigned_to,
                 -status,
-                -Artist)
+                -Artist) %>%
+  # Calculate the Haversine distance
+  dplyr::rowwise() %>%
+  dplyr::mutate(gps_err = geosphere::distHaversine(c(longitude, latitude),
+                                                   c(record_longitude, record_latitude))) %>%
+  dplyr::ungroup()
 
 # Generate dataset mapping C-labels to S-labels
 po_slabels <- readr::read_csv("data/plating_out_s_labeled_plates.csv") %>%
@@ -172,45 +174,74 @@ issues[["c_label_never_processed"]] = df %>%
   dplyr::select(c_label)
 
 
+# Trail coordinates
 
 # Creat Island Column
 df$island <- "?"
-df[filter_box(df$longitude, df$latitude, OAHU), "island"] <- "OAHU"
-df[filter_box(df$longitude, df$latitude, KAUAI), "island"] <- "KAUAI"
-df[filter_box(df$longitude, df$latitude, MOLOKAI), "island"] <- "MOLOKAI"
-df[filter_box(df$longitude, df$latitude, MAUI), "island"] <- "MAUI"
-df[filter_box(df$longitude, df$latitude, BIG_ISLAND), "island"] <- "BIG_ISLAND"
+df[filter_box(df$longitude, df$latitude, c(-158.3617,21.1968,-157.5117,21.7931)), "island"] <- "Oahu"
+df[filter_box(df$longitude, df$latitude, c(-159.9362, 21.6523, -159.1782, 22.472)), "island"] <- "Kauai"
+df[filter_box(df$longitude, df$latitude, c(-157.327, 21.0328, -156.685, 21.2574)), "island"] <- "Molokai"
+df[filter_box(df$longitude, df$latitude, c(-156.7061, 20.4712, -155.9289, 21.0743)), "island"] <- "Maui"
+df[filter_box(df$longitude, df$latitude, c(-156.1346, 18.6619, -154.6985, 20.4492)), "island"] <- "Big Island"
 
-# Fix errant GPS locations from team Moana
+# Fix errant GPS locations from team Moana and Erik
 df[df$island == "BIG_ISLAND" & df$team == "MOANA" , c("latitude", "longitude")] <- NA
+df[df$island == "?", c("latitude", "longitude")] <- NA
 df[df$island == "BIG_ISLAND" & df$team == "MOANA" & !is.na(df$island),"island"] <- "MAUI"
 
 # Create Trail Column
-df$trail <- NA
+df$location <- NA
+
+df[filter_box(df$longitude, df$latitude, c(-157.72537,21.303309,-157.71919,21.32122)), "location"] <- "Kuliouou Ridge Trail"
+df[filter_box(df$longitude, df$latitude, c(-158.0192352613,21.5014265529,-158.0145925283,21.5041245046)), "location"] <- "Wahiawa Botanical Garden"
+df[filter_box(df$longitude, df$latitude, c(-157.8598800302,21.3149311581,-157.855797708,21.3182194587)), "location"] <- "Foster Community Garden"
+df[filter_box(df$longitude, df$latitude, c(-157.7829487403,21.3569863645,-157.7752268314,21.3655295525)), "location"] <- "Maunawili Demonstration Trail"
+df[filter_box(df$longitude, df$latitude, c(-157.8014534712,21.3322593,-157.798127532,21.3427719396)), "location"] <- "Manoa Falls Trail"
+df[filter_box(df$longitude, df$latitude, c(-157.8135502338,21.3779082884,-157.7915561199,21.3970691079)), "location"] <- "Ho'omaluhia Botanical Garden"
+df[filter_box(df$longitude, df$latitude, c(-159.613624,22.167098,-159.575601,22.226422)), "location"] <- "Na Pali Coast State Wilderness Park"
 
 
+
+
+# Add photo URL
+df <-df %>% dplyr::rowwise() %>%
+  dplyr::group_by(c_label) %>%
+  dplyr::mutate(photo = paste0(c_label,
+                              ".",
+                              stringr::str_to_lower(stringr::str_replace_all(substrate, "[^[:alnum:]]", "_")),
+                              ".1.jpg"),
+                photo_url = paste0("https://storage.googleapis.com/elegansvariation.org/photos/hawaii2017/",
+                                   c_label,
+                                   ".",
+                                   stringr::str_to_lower(stringr::str_replace_all(substrate, "[^[:alnum:]]", "_")),
+                                   ".1.jpg"),
+                photo_url_thumb =  paste0("https://storage.googleapis.com/elegansvariation.org/photos/hawaii2017/",
+                                          c_label,
+                                          ".",
+                                          stringr::str_to_lower(stringr::str_replace_all(substrate, "[^[:alnum:]]", "_")),
+                                          ".1.thumb.jpg")) %>%
+  dplyr::ungroup()
+# 
 # photo_comms <- df %>% dplyr::mutate(sample_photo = str_split(sample_photo, ",")) %>%
 #   dplyr::select(-s_label) %>%
 #   dplyr::select(c_label, sample_photo, substrate) %>%
-#   tidyr::unnest() %>% 
+#   tidyr::unnest() %>%
 #   dplyr::group_by(c_label) %>%
-#   dplyr::mutate(comm = paste0("cp data/photos/id/",
+#   dplyr::mutate(comm = paste0("cp ../data/photos/id/",
 #                               sample_photo,
 #                               ".jpg",
 #                               " ",
-#                               "data/photos/c/",
+#                               "../data/photos/c/",
 #                               c_label,
 #                               ".",
 #                               stringr::str_to_lower(str_replace_all(substrate, "[^[:alnum:]]", "_")),
 #                               ".",
 #                               dplyr::row_number(c_label),
 #                               ".jpg")) %>%
-#   
+# 
 #   dplyr::select(-c_label, comm)
 # 
-# 
-# # Fix images
-# lapply(photo_comms, system)
+# writeLines(photo_comms$comm, con = file("scripts/rename_photos.sh"))
 
 # Summarize
 summary <- df %>% dplyr::group_by(island, worms_on_sample) %>% 

@@ -5,7 +5,7 @@ import qrcode
 from tempfile import mktemp
 
 
-people = ['DEC', 'SCB', 'SXZ', 'ECA', 'KSE', 'DDL', 'BCR']
+people = ['R']
 
 label_types = {
     "a_5963": labels.Specification(210, 297, 2, 5, 102, 54, corner_radius=2,
@@ -33,28 +33,28 @@ def draw_label(label, width, height, obj):
     # Add ID, date, time
     label.add(shapes.String(70, 128, str(
         obj['ID']), fontName="Courier", fontSize=18))
-    label.add(shapes.String(70, 100, str("08 / __ / 17"),
-                            fontName="Courier", fontSize=14))
-    label.add(shapes.String(200, 100, str("___:___"),
-                            fontName="Courier", fontSize=14))
-
-    label.add(shapes.String(10, 60, str(
-        "Lat;Lon    __________;__________"), fontName="Courier", fontSize=14))
-
-    # Substrate
-    label.add(shapes.String(10, 40, str(
-        "Substrate  __________________"), fontName="Courier", fontSize=14))
-
-    # Humidity
-    label.add(shapes.String(10, 20, str("Humidity   _____%"),
-                            fontName="Courier", fontSize=14))
+    #label.add(shapes.String(70, 100, str("08 / __ / 17"),
+    #                        fontName="Courier", fontSize=14))
+    #label.add(shapes.String(200, 100, str("___:___"),
+    #                        fontName="Courier", fontSize=14))
+#
+    #label.add(shapes.String(10, 60, str(
+    #    "Lat;Lon    __________;__________"), fontName="Courier", fontSize=14))
+#
+    ## Substrate
+    #label.add(shapes.String(10, 40, str(
+    #    "Substrate  __________________"), fontName="Courier", fontSize=14))
+#
+    ## Humidity
+    #label.add(shapes.String(10, 20, str("Humidity   _____%"),
+    #                        fontName="Courier", fontSize=14))
 
 specs = label_types['a_5963']
 sheet = labels.Sheet(specs, draw_label, border=False)
 
 # Generate large labels
 for person in people:
-    for i in range(0, 10):
+    for i in range(0, 500):
         _id = person + "-" + str("%04i" % (i + 1))
         sheet.add_label({"ID": _id})
 sheet.save('collection-forms.pdf')
@@ -81,7 +81,7 @@ sheet = labels.Sheet(specs, draw_label_plate, border=False)
 
 # Generate large labels
 for person in people:
-    for i in range(0, 10):
+    for i in range(0, 500):
         _id = person + "-" + str("%04i" % (i + 1))
         sheet.add_label({"ID": _id})
 

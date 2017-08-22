@@ -12,22 +12,79 @@ output:
 
 ```{r setup, include=FALSE}
 require(knitr)
+library(leaflet)
+# devtools::install_github("wch/webshot")
+library(webshot)
+library(tidyverse)
 opts_knit$set(progress=TRUE)
 
 opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, print=FALSE)
 opts_chunk$set(results="asis")
 opts_chunk$set(cache=TRUE,cache.path="cache/")
 opts_chunk$set(fig.path="figure/",dev=c("png", "svg"))
+opts_chunk$set(debug = function(before, options, envir) {
+  if (!before) {
+    message(
+      paste(names(envir), as.list(envir),
+            sep = " = ", collapse = "\n"))
+  }
+})
+
+gallery <- function(df) {
+    knitr::asis_output(paste0("<img class='img-thumbnail' src='", df$photo_url_thumb, "' />"))
+}
+
+
+WIDTH <- 20
+HEIGHT <- 20
+  
+ICONS <- iconList(
+  RED = makeIcon(
+    iconUrl = "https://storage.googleapis.com/andersenlab.org/img/red.svg",
+    iconWidth = WIDTH, iconHeight = HEIGHT,
+    popupAnchorX = 0.00001, popupAnchorY = -HEIGHT+13,
+    iconAnchorX = WIDTH/2, iconAnchorY = HEIGHT),
+  BLUE = makeIcon(
+    iconUrl = "https://storage.googleapis.com/andersenlab.org/img/blue.svg",
+    iconWidth = WIDTH, iconHeight = HEIGHT,
+    popupAnchorX = 0.00001, popupAnchorY = -HEIGHT+13,
+    iconAnchorX = WIDTH/2, iconAnchorY = HEIGHT)
+)
+
+map_collection <- function(df, by) {
+  
+  leaflet::leaflet(data = df) %>% 
+      leaflet::addTiles( 
+      paste0( 
+        "https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=", 
+        jsonlite::read_json("thunderforest.json")$key)  
+      ) %>%
+    leaflet::addMarkers(~longitude, ~latitude, popup = df$c_label, 
+               icon = ~ICONS['RED'] )
+  
+  #htmlwidgets::saveWidget(m, tempfile(), selfcontained = FALSE)
+  #webshot::webshot("temp.html", file = "map.png",
+  #        cliprect = "viewport", vwidth = 1000, vheight = 1000)
+  
+}
+
+
+# Load Data
+load("data/df.Rda")
 
 ```
 
 # Overall Summary
 
+```{r leaflet, echo = FALSE}
+
+map_collection(df)
+
+```
+
 ## Island Summary
 
 ```{r island_summary}
-library(tidyverse)
-load("data/df.Rda")
 
 knitr::kable(summary)
 
@@ -56,7 +113,7 @@ cso %>%
 
 ggplot(df) +
   geom_histogram(aes(x = substrate_moisture_)) +
-  labs(x = "Substrate Moisture (C)", y = "Count") +
+  labs(x = "Substrate Moisture (%)", y = "Count") +
   facet_grid(substrate_moisture_issue~.) +
   theme_bw()
 
@@ -83,7 +140,7 @@ ggplot(df) +
 
 ggplot(df) +
   geom_histogram(aes(x = ambient_humidity_), bins=50) +
-  labs(x = "Ambient Humidity (C)", y = "Count") +
+  labs(x = "Ambient Humidity (%)", y = "Count") +
   theme_bw()
 
 ```
@@ -101,43 +158,14 @@ ggplot(df) +
 ## Daily Collections
 
 ```{r 2017-08-02}
-library(leaflet)
-# devtools::install_github("wch/webshot")
-library(webshot)
 
-  
-width <- 20
-height <- 20
-  
-icons <- iconList(
-  red = makeIcon(
-    iconUrl = "https://storage.googleapis.com/andersenlab.org/img/red.svg",
-    iconWidth = width, iconHeight = height,
-    popupAnchorX = 0.00001, popupAnchorY = -height+13,
-    iconAnchorX = width/2, iconAnchorY = height),
-  blue = makeIcon(
-    iconUrl = "https://storage.googleapis.com/andersenlab.org/img/blue.svg",
-    iconWidth = width, iconHeight = height,
-    popupAnchorX = 0.00001, popupAnchorY = -height+13,
-    iconAnchorX = width/2, iconAnchorY = height)
-  )
-
-
-duse <- df %>%
-  dplyr::filter(date == "2017-08-02")
-
-m <- leaflet(data = duse) %>% 
-    addTiles( 
-    paste0( 
-      "https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=", 
-      jsonlite::read_json("thunderforest.json")$key)  
-    ) %>%
-  addMarkers(~longitude, ~latitude, popup = duse$c_label, 
-             icon = ~icons['red'] )
-
-htmlwidgets::saveWidget(m, "temp.html", selfcontained = FALSE)
-webshot::webshot("temp.html", file = "map.png",
-        cliprect = "viewport", vwidth = 1000, vheight = 1000)
   
 ```
+
+## Gallery
+
+```{r gallery, results='asis', include=TRUE}
+gallery(df %>% dplyr::filter(substrate == "Flower"))
+```
+
 
