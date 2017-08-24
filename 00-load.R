@@ -1,6 +1,7 @@
 library(tidyverse)
 library(lubridate)
 library(geosphere)
+
 # Set working directory
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
@@ -50,7 +51,11 @@ sc <- readr::read_csv("data/sample_collection.csv") %>%
   # Fix ambient temp F to C
   dplyr::mutate(ambient_temperature_c = ifelse(ambient_temperature_c > 50,
                                                FtoC(ambient_temperature_c),
-                                               ambient_temperature_c))
+                                               ambient_temperature_c)) %>%
+  # Fix mispelling
+  dplyr::mutate(substrate = ifelse(substrate == "Millipeed",
+                                   "Millipede",
+                                   substrate))
 
 # Read in S-labels
 po <- readr::read_csv("data/plating_out.csv") %>%
@@ -243,29 +248,19 @@ df <-df %>% dplyr::rowwise() %>%
 # 
 # writeLines(photo_comms$comm, con = file("scripts/rename_photos.sh"))
 
-# Summarize
-summary <- df %>% dplyr::group_by(island, worms_on_sample) %>% 
-       dplyr::summarize(n = n()) %>%
-       tidyr::spread(worms_on_sample, n, fill = 0) %>%
-       dplyr::mutate(Total = (`?` + `No` + `Tracks` + `Yes`),
-                     Yes_Rate = round((`Yes` / `Total`), 3),
-                     Yes_Track_Rate = round(((Yes + Tracks)/Total), 3),
-                     Loss_Rate = round(`?`/`Total`, 3)) %>%
-       dplyr::ungroup()
-
-summary_aggregated <- summary %>% dplyr::summarize(island = "HAWAII (STATE TOTAL)",
-                             `?` = sum(`?`),
-                             No = sum(No),
-                             Yes = sum(Yes),
-                             Tracks = sum(Tracks),
-                             Total = sum(Total),
-                             Yes_Rate = round((sum(Yes)/sum(Total)), 3),
-                             Yes_Track_Rate= round(sum(Yes+Tracks)/sum(Total), 3),
-                             Loss_Rate = round(sum(`?`) / sum(Total), 3))
-
-summary <- rbind(summary, summary_aggregated)
-
 # redefine
 cso <- po_slabels
 
-save(file = "data/df.Rda", summary, df, cso)
+
+# df for google sheet
+# df %>% dplyr::mutate(s_label = stringr::str_split(s_label, ",")) %>%
+#        tidyr::unnest() %>%
+#        dplyr::select(c_label,
+#                      s_label,
+#                      island,
+#                      date,
+#                      po_date,
+#                      approximate_number_of_worms) #%>%
+#        dplyr::filter(!is.na(s_label)) %>% excel(.)
+
+save(file = "data/df.Rda", df, cso)

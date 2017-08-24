@@ -1,24 +1,23 @@
 ---
 title: "Hawaii Collection Trip Preliminary Analysis"
-author: "Dan Cook"
+author: "Daniel Cook"
 date: "`r Sys.Date()`"
 output: 
   html_document:
     theme: united
     toc: yes
-  pdf_document: 
-    toc: yes
+    toc_float:
+      collapsed: false
 ---
 
 ```{r setup, include=FALSE}
 require(knitr)
-library(leaflet)
 # devtools::install_github("wch/webshot")
 library(webshot)
 library(tidyverse)
 opts_knit$set(progress=TRUE)
 
-opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, print=FALSE)
+opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, print=FALSE, verbose=TRUE)
 opts_chunk$set(results="asis")
 opts_chunk$set(cache=TRUE,cache.path="cache/")
 opts_chunk$set(fig.path="figure/",dev=c("png", "svg"))
@@ -30,47 +29,12 @@ opts_chunk$set(debug = function(before, options, envir) {
   }
 })
 
-gallery <- function(df) {
-    knitr::asis_output(paste0("<img class='img-thumbnail' src='", df$photo_url_thumb, "' />"))
-}
-
-
-WIDTH <- 20
-HEIGHT <- 20
-  
-ICONS <- iconList(
-  RED = makeIcon(
-    iconUrl = "https://storage.googleapis.com/andersenlab.org/img/red.svg",
-    iconWidth = WIDTH, iconHeight = HEIGHT,
-    popupAnchorX = 0.00001, popupAnchorY = -HEIGHT+13,
-    iconAnchorX = WIDTH/2, iconAnchorY = HEIGHT),
-  BLUE = makeIcon(
-    iconUrl = "https://storage.googleapis.com/andersenlab.org/img/blue.svg",
-    iconWidth = WIDTH, iconHeight = HEIGHT,
-    popupAnchorX = 0.00001, popupAnchorY = -HEIGHT+13,
-    iconAnchorX = WIDTH/2, iconAnchorY = HEIGHT)
-)
-
-map_collection <- function(df, by) {
-  
-  leaflet::leaflet(data = df) %>% 
-      leaflet::addTiles( 
-      paste0( 
-        "https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=", 
-        jsonlite::read_json("thunderforest.json")$key)  
-      ) %>%
-    leaflet::addMarkers(~longitude, ~latitude, popup = df$c_label, 
-               icon = ~ICONS['RED'] )
-  
-  #htmlwidgets::saveWidget(m, tempfile(), selfcontained = FALSE)
-  #webshot::webshot("temp.html", file = "map.png",
-  #        cliprect = "viewport", vwidth = 1000, vheight = 1000)
-  
-}
-
 
 # Load Data
 load("data/df.Rda")
+
+# Load utility functions
+source("functions.R")
 
 ```
 
@@ -78,32 +42,40 @@ load("data/df.Rda")
 
 ```{r leaflet, echo = FALSE}
 
-map_collection(df)
 
-library(maps)
+map_collection(df %>% dplyr::mutate(s = case_when(worms_on_sample == "Yes" ~ "green",
+                                                  worms_on_sample == "Tracks" ~ "orange",
+                                                  worms_on_sample == "No" ~ "grey")) , "s")
 
-county <- map_data("world") %>% filter(region == 'USA', subregion == "Hawaii")
-
-ggplot() +  
-    geom_polygon(data=county, aes(x=long, y=lat, group=group), fill="grey40", 
-        colour="grey90", alpha=1) +
-    labs(x="", y="", title="Building Area Within 1000m") + #labels
-    theme(axis.ticks.y = element_blank(),axis.text.y = element_blank(), # get rid of x ticks/text
-          axis.ticks.x = element_blank(),axis.text.x = element_blank(), # get rid of y ticks/text
-          plot.title = element_text(lineheight=.8, face="bold", vjust=1)) + # make title bold and add space
-    geom_point(aes(x=longitude, y=latitude), data=df, alpha=1, size=3, color="grey20") + # to get outline
-    geom_point(aes(x=longitude, y=latitude), data=df, alpha=1, size=2, color="red") +
-    scale_colour_gradientn("Building\narea (sq-km)", 
-        colours=c( "#f9f3c2","#660000"))+
-    coord_equal(ratio=1)# change color scale
 
 ```
+
+<h4>Worms on Sample</h4>
+<div><img src='https://storage.googleapis.com/andersenlab.org/img/green.svg' width='20px'> __Yes__</div>
+<div><img src='https://storage.googleapis.com/andersenlab.org/img/orange.svg' width='20px'> __Tracks__</div>
+<div><img src='https://storage.googleapis.com/andersenlab.org/img/grey.svg' width='20px'> __No__</div>
 
 ## Island Summary
 
 ```{r island_summary}
 
-knitr::kable(summary)
+knitr::kable(summarize_worms_by(df, "island"))
+
+```
+
+## Date Summary
+
+```{r date_summary}
+
+knitr::kable(summarize_worms_by(df, "date"))
+
+```
+
+## Substrate Summary
+
+```{r substrate_summary}
+
+knitr::kable(summarize_worms_by(df, "substrate"))
 
 ```
 
