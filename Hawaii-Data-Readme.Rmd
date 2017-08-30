@@ -31,7 +31,7 @@ opts_chunk$set(debug = function(before, options, envir) {
 
 
 # Load Data
-load("data/df.Rda")
+load("data/fulcrum/df.Rda")
 
 # Load utility functions
 source("functions.R")
@@ -68,7 +68,7 @@ library(leaflet)
 library(tidyverse)
 library(knitr)
 library(webshot)
-load("data/df.Rda")
+load("data/fulcrum/df.Rda")
 source("functions.R")
 ```
 

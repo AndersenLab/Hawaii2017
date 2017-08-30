@@ -24,7 +24,7 @@ FtoC <- function(F) {
 }
 
 # Read in C-labels
-sc <- readr::read_csv("data/sample_collection.csv") %>%
+sc <- readr::read_csv("data/fulcrum/sample_collection.csv") %>%
   dplyr::mutate(c_label = stringr::str_to_upper(c_label)) %>%
   dplyr::filter(project != "Worm Meeting Collection") %>%
   dplyr::rename(sampled_by = created_by) %>%
@@ -58,7 +58,7 @@ sc <- readr::read_csv("data/sample_collection.csv") %>%
                                    substrate))
 
 # Read in S-labels
-po <- readr::read_csv("data/plating_out.csv") %>%
+po <- readr::read_csv("data/fulcrum/plating_out.csv") %>%
   dplyr::select(c_label_id = c_label,
                 po_id = fulcrum_id,
                 po_created_at = system_created_at,
@@ -95,7 +95,7 @@ po <- readr::read_csv("data/plating_out.csv") %>%
 #   # Only retain data from one sample photo.
 #   dplyr::distinct(.keep_all=T)
 # save(file = "data/exif.Rda", exif)
-load("data/exif.Rda")
+load("data/fulcrum/exif.Rda")
 
 # Join Data
 df <- dplyr::full_join(po, sc, by = c("c_label_id" = "fulcrum_id")) %>%
@@ -112,7 +112,8 @@ df <- dplyr::full_join(po, sc, by = c("c_label_id" = "fulcrum_id")) %>%
   dplyr::mutate(ambient_temperature_c = ifelse(ambient_temperature_c > 70,
                                                ((5/9)*(ambient_temperature_c-32)),
                                                ambient_temperature_c)) %>%
-  dplyr::mutate_each(funs(as.numeric), dplyr::starts_with("gps")) %>%
+  dplyr::mutate_at(.vars = vars(dplyr::starts_with("gps")),
+                   .funs = funs(as.numeric)) %>%
   dplyr::mutate(team = ifelse(sampled_by %in% RAPTORS, "RAPTORS", "MOANA")) %>%
   dplyr::mutate(worms_on_sample = ifelse(is.na(worms_on_sample), "?", worms_on_sample)) %>%
   dplyr::filter(!is.na(c_label)) %>%
@@ -126,7 +127,7 @@ df <- dplyr::full_join(po, sc, by = c("c_label_id" = "fulcrum_id")) %>%
   dplyr::ungroup()
 
 # Generate dataset mapping C-labels to S-labels
-po_slabels <- readr::read_csv("data/plating_out_s_labeled_plates.csv") %>%
+po_slabels <- readr::read_csv("data/fulcrum/plating_out_s_labeled_plates.csv") %>%
   dplyr::select(fulcrum_parent_id, s_label) %>%
   dplyr::left_join(df, by = c("fulcrum_parent_id" = "po_id")) %>%
   dplyr::select(c_label,
@@ -263,4 +264,4 @@ cso <- po_slabels
 #                      approximate_number_of_worms) #%>%
 #        dplyr::filter(!is.na(s_label)) %>% excel(.)
 
-save(file = "data/df.Rda", df, cso)
+save(file = "data/fulcrum/df.Rda", df, cso)
