@@ -65,7 +65,6 @@ with open(wd + '/data/sanger/seqs.fasta', 'w') as fasta_seqs:
                 print(alignment)
                 # Only take one alignment/match
                 hsp = alignment.hsps[0]
-                print(dir(hsp))
                 alignment_fname = sname + "_" + alignment.hit_id.replace("|","").replace(".", "") + ".txt"
                 result_line = '\t'.join(list(map(str,[s_plate,
                                                       primer,
