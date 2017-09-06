@@ -1,0 +1,160 @@
+---
+title: "`r commandArgs(trailingOnly = TRUE)`"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: paper
+    toc: yes
+    css: style.css
+    toc_float:
+      collapsed: false
+---
+
+```{r setup, include=FALSE}
+require(knitr)
+library(tidyverse)
+library(sangerseqR)
+
+# USAGE:
+#
+# You must run this from the command line!
+#
+# Rscript -e "rmarkdown::render('02-blast.Rmd', output_file = 'S-05230.html', output_dir ='data/sanger/reports/')" S-05230
+#
+
+try(setwd(dirname(rstudioapi::getActiveDocumentContext()$path)))
+opts_knit$set(progress=TRUE)
+
+opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, print=FALSE, verbose=TRUE)
+opts_chunk$set(results="asis")
+opts_chunk$set(cache=TRUE,cache.path="cache/")
+opts_chunk$set(fig.path="figure/",dev=c("png", "svg"))
+opts_chunk$set(debug = function(before, options, envir) {
+  if (!before) {
+    message(
+      paste(names(envir), as.list(envir),
+            sep = " = ", collapse = "\n"))
+  }
+})
+
+# Load Data
+load("data/fulcrum/df.Rda")
+
+# Load utility functions
+source("functions.R")
+
+```
+
+## Blast Results
+
+```{r, results='asis'}
+
+subchar3<-function(inputstring, pos){
+string = ""
+memory = 0
+for(num in pos){
+    string = c(string,substr(inputstring, (memory+1), (num-1)))
+    memory = num
+}
+string = paste(c(string, substr(inputstring,(memory+1), nchar(inputstring))),collapse = "")
+return(string)
+}
+
+## Sanger
+plot_sanger <- function(row_) {
+  row_$sanger_fname <- gsub("^/", "", row_$sanger_fname)
+  sanger <- sangerseqR::readsangerseq(row_$sanger_fname)
+  seq_offset = as.integer(stringr::str_locate(sanger@primarySeq, "N+")[1,'end'])
+  seq_length <- nrow(peakPosMatrix(sanger))
+  alignment_fname <- paste0("data/sanger/processed/alignments/", row_$alignment_fname)
+
+  # Match alignment
+  sanger_sequence = readLines(file(alignment_fname))[1]
+  
+  # Remove insertions in query not present in Sanger
+  blast_sequence <- subchar3(readLines(file(alignment_fname))[3],
+                               stringr::str_locate_all(sanger_sequence, "[-]{1}")[[1]][,"start"])
+  
+  alignment_position = aregexec(blast_sequence, sanger@primarySeq, max = 50)
+  
+  start = paste0(rep("N", alignment_position[[1]][1] - 1) , collapse = "")
+  end = paste0(rep("N", seq_length - row_$end), collapse = "")
+  blast_alignment = DNAString(paste0(start, blast_sequence, end))
+  
+  sanger@secondarySeq = blast_alignment
+  png_out = paste0("data/sanger/chromatograms/", gsub("\\||\\.","",row_$hit_id), ".png")
+  height = stringr::str_length(sanger@primarySeq) * 1.5
+  png(png_out, width = 1000, height = height)
+  chromatogram(sanger,
+               width = 50,
+               height = 2,
+               trim5 = row_$start,
+               trim3 = seq_length - row_$end,
+               showcalls="both",
+               showtrim = T,
+               filename = NULL)
+   dev.off()
+   glue::glue('![{row_$hit_id}]({png_out})')
+}
+
+# Get s_plate from Args
+s <- commandArgs(trailingOnly = TRUE)
+
+# For debugging purposes
+if (length(s) == 0) {
+    s = "S-05117"
+}
+
+# Filter blast results for S-plate; Unnest when multiple
+# sanger results are present.
+sequences <- readr::read_tsv("data/sanger/blast_results2.tsv") %>%
+             dplyr::mutate(s_plate = ifelse(is.na(s_plate), "CONTROL", s_plate)) %>%
+             dplyr::filter(s_plate == s)
+
+seq_results <- lapply(unique(sequences$sname), function(sname) {
+  seq <- sequences %>% dplyr::filter(sname == sname)
+  
+  alignment_out <- sapply(seq$hit_id, function(hit) {
+    row_ <- dplyr::filter(seq, hit_id == hit)
+    blast_plot <- plot_sanger(row_)
+    fname <- paste0("data/sanger/processed/alignments/", row_$alignment_fname)
+    output = ""
+    if (file.exists(fname)) {
+      alignment = paste0(readLines(file(fname)), collapse="<br />")
+      
+      output = glue::glue('<div class="panel-body" style="font-weight: 800"><h4>{row_$hit_id}</h4></div>',
+                          '<table class="table table-condensed table-striped table-bordered">',
+                          '<tr><td>Hit-Def</td><td>{row_$hit_def}</td></tr>',
+                          '<tr><td>S-Plate</td><td>{s}</td></tr>',
+                          '<tr><td>primer</td><td>{row_$primer}</td></tr>',
+                          '<tr><td>seq/primer</td><td>{row_$sname}</td></tr>',
+                          '<tr><td>Accession</td><td>{row_$accession}</td></tr>',
+                          '<tr><td>e-value</td><td>{row_$expect}</td></tr>',
+                          '<tr><td>score</td><td>{row_$score}</td></tr>',
+                          '<tr><td>aligned length</td><td>{row_$align_length}</td></tr>',
+                          '<tr><td>gaps</td><td>{row_$gaps}</td></tr>',
+                          '</table>',
+                          '<div class="panel-body">',
+                          blast_plot,
+                          "<pre>{alignment}</pre>",
+                          "<small>The top line in the plot and alignment is the Sanger sequence. The Bottom line in the plot and alignment is the BLAST result. Red hatches indicate regions that were trimmed; Blue regions indicate mismatches.</small>",
+                          '</div><hr />')
+      
+    } 
+    output
+  })
+  alignment_out <- paste0(alignment_out, collapse="")
+
+  paste0(glue::glue('<div class="panel panel-default">',
+             '<div class="panel-heading">',
+             '<h3 class="panel-title" style="font-weight: 800">{sname}</h3>',
+             '</div>',
+             '{alignment_out}',
+             '</div>'), collapse = "")
+#blast_results %>% dplyr::filter(s_plate == s)
+})
+seq_results <- paste0(seq_results, collapse="")
+
+cat(paste0(seq_results, collapse=""))
+
+```

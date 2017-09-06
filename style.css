@@ -1,0 +1,11 @@
+pre {
+    overflow-x: scroll;
+}
+
+td:nth-child(1) {  
+  font-weight: 800;
+}
+
+hr { 
+    margin-bottom: 0px;
+}

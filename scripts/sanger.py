@@ -33,14 +33,14 @@ def trim_sanger(seq, minimum = 10):
 
 wd = get_git_dir()
 
-blast_results = open(wd + '/data/sanger/blast_results.tsv', 'w+')
-blast_results.write("s_plate\tprimer\twell\tsname\thit_id\thit_def\taccession\tpositives\talign_length\tscore\texpect\tgaps\talignment_fname\n")
+blast_results = open(wd + '/data/sanger/blast_results3.tsv', 'w+')
+blast_results.write("s_plate\tprimer\twell\tsname\thit_id\thit_def\taccession\tpositives\talign_length\tscore\tpositives\tidentities\texpect\tgaps\talignment_fname\tsanger_fname\tstart\tend\n")
 blast_results.flush()
 
 with open(wd + '/data/sanger/seqs.fasta', 'w') as fasta_seqs:
     with open(wd + '/data/sanger/sanger_trimming.tsv', 'w') as f:
         f.write('seq\ttrim_left\ttrim_right\tprimer_type\n')
-        for s in glob.glob(wd + '/data/sanger/raw/*/*ab1')[0:2]:
+        for s in glob.glob(wd + '/data/sanger/raw/*/*ab1')[11:]:
             primer_type = dirname(s).split("/")[-1]
             # Format an output fastq
             out = s.replace('raw', 'processed/trimmed').replace('ab1', 'fastq')
@@ -65,6 +65,7 @@ with open(wd + '/data/sanger/seqs.fasta', 'w') as fasta_seqs:
                 print(alignment)
                 # Only take one alignment/match
                 hsp = alignment.hsps[0]
+                print(dir(hsp))
                 alignment_fname = sname + "_" + alignment.hit_id.replace("|","").replace(".", "") + ".txt"
                 result_line = '\t'.join(list(map(str,[s_plate,
                                                       primer,
@@ -76,9 +77,14 @@ with open(wd + '/data/sanger/seqs.fasta', 'w') as fasta_seqs:
                                                       hsp.positives,
                                                       hsp.align_length,
                                                       hsp.score,
+                                                      hsp.positives,
+                                                      hsp.identities,
                                                       hsp.expect,
                                                       hsp.gaps,
-                                                      alignment_fname])))
+                                                      alignment_fname,
+                                                      s.replace(wd, ''), # Sanger filename
+                                                      hsp.query_start,
+                                                      hsp.query_end])))
 
                 blast_results.write(result_line + '\n')
                 blast_results.flush()
