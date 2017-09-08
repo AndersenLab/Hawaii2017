@@ -1,8 +1,8 @@
 library(leaflet)
-
+library(rlang)
 ### Summarize df by worms and a variable variable and output a table.
 summarize_worms_by <- function(df, variable) {
-  summary <- df %>% dplyr::group_by_(as.name(variable), "worms_on_sample") %>% 
+  summary <- df %>% dplyr::group_by(UQ(rlang::sym(variable)), worms_on_sample) %>% 
     dplyr::summarize(n = n()) %>%
     tidyr::spread(worms_on_sample, n, fill = 0) %>%
     dplyr::mutate(Total = (`?` + `No` + `Tracks` + `Yes`),
@@ -10,7 +10,7 @@ summarize_worms_by <- function(df, variable) {
                   Yes_Track_Rate = round(((Yes + Tracks)/Total), 3),
                   Loss_Rate = round(`?`/`Total`, 3)) %>%
     dplyr::ungroup() %>%
-    dplyr::mutate(!!variable := as.character(.data[[variable]]))
+    dplyr::mutate(!!variable := as.character(UQ(rlang::sym(variable))))
   
   total <- summary %>% 
     dplyr::summarize(!!variable := "Total",

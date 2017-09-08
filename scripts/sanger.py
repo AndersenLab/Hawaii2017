@@ -33,8 +33,8 @@ def trim_sanger(seq, minimum = 10):
 
 wd = get_git_dir()
 
-blast_results = open(wd + '/data/sanger/blast_results3.tsv', 'w+')
-blast_results.write("s_plate\tprimer\twell\tsname\thit_id\thit_def\taccession\tpositives\talign_length\tscore\tpositives\tidentities\texpect\tgaps\talignment_fname\tsanger_fname\tstart\tend\n")
+blast_results = open(wd + '/data/sanger/blast_results4.tsv', 'w+')
+blast_results.write("s_plate\tprimer\twell\tsname\thit_id\thit_def\taccession\talign_length\tscore\tpositives\tidentities\texpect\tgaps\talignment_fname\tsanger_fname\tstart\tend\n")
 blast_results.flush()
 
 with open(wd + '/data/sanger/seqs.fasta', 'w') as fasta_seqs:
@@ -73,7 +73,6 @@ with open(wd + '/data/sanger/seqs.fasta', 'w') as fasta_seqs:
                                                       alignment.hit_id,
                                                       alignment.hit_def,
                                                       alignment.accession,
-                                                      hsp.positives,
                                                       hsp.align_length,
                                                       hsp.score,
                                                       hsp.positives,

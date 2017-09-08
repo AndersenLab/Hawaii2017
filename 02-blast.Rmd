@@ -107,7 +107,7 @@ if (length(s) == 0) {
 
 # Filter blast results for S-plate; Unnest when multiple
 # sanger results are present.
-sequences <- readr::read_tsv("data/sanger/blast_results2.tsv") %>%
+sequences <- readr::read_tsv("data/sanger/blast_results3.tsv") %>%
              dplyr::mutate(s_plate = ifelse(is.na(s_plate), "CONTROL", s_plate)) %>%
              dplyr::filter(s_plate == s)
 
@@ -122,6 +122,8 @@ seq_results <- lapply(unique(sequences$sname), function(sname) {
     if (file.exists(fname)) {
       alignment = paste0(readLines(file(fname)), collapse="<br />")
       
+      perc_identity = round(100* (row_$positives / row_$align_length), 2)
+      
       output = glue::glue('<div class="panel-body" style="font-weight: 800"><h4>{row_$hit_id}</h4></div>',
                           '<table class="table table-condensed table-striped table-bordered">',
                           '<tr><td>Hit-Def</td><td>{row_$hit_def}</td></tr>',
@@ -131,6 +133,7 @@ seq_results <- lapply(unique(sequences$sname), function(sname) {
                           '<tr><td>Accession</td><td>{row_$accession}</td></tr>',
                           '<tr><td>e-value</td><td>{row_$expect}</td></tr>',
                           '<tr><td>score</td><td>{row_$score}</td></tr>',
+                          '<tr><td>% identity</td><td>{perc_identity}</td></tr>',
                           '<tr><td>aligned length</td><td>{row_$align_length}</td></tr>',
                           '<tr><td>gaps</td><td>{row_$gaps}</td></tr>',
                           '</table>',

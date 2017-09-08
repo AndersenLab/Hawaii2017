@@ -55,6 +55,27 @@ map_collection(df %>% dplyr::mutate(s = case_when(worms_on_sample == "Yes" ~ "gr
 <div><img src='https://storage.googleapis.com/andersenlab.org/img/orange.svg' width='20px'> __Tracks__</div>
 <div><img src='https://storage.googleapis.com/andersenlab.org/img/grey.svg' width='20px'> __No__</div>
 
+## Collection over time
+
+```{r}
+
+library(gganimate)
+library(shapefiles)
+
+i <- ggplot(df) +  
+    geom_polygon(data = shp, aes(x=X, y = Y, group = island)) +
+    geom_point(aes(x=longitude, y=latitude, frame=datetime, cumulative = TRUE), color = "#ff800020") +
+    theme(axis.ticks.y = element_blank(), axis.text.y = element_blank(), # get rid of x ticks/text
+          axis.ticks.x = element_blank(), axis.text.x = element_blank(), # get rid of y ticks/text
+          axis.title.x = element_blank(), axis.title.y = element_blank(),
+          panel.background = element_blank(),
+          plot.title = element_text(lineheight=.8, face="bold", vjust=1)) + 
+    coord_equal(ratio=1) # square plot to avoid the distortion
+
+gganimate::gganimate(i, interval = 0.02, filename='output.gif')
+
+```
+
 ## Island Summary
 
 ```{r island_summary}

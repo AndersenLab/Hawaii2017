@@ -182,7 +182,7 @@ issues[["c_label_never_processed"]] = df %>%
 
 # Trail coordinates
 
-# Creat Island Column
+# Create Island Column
 df$island <- "?"
 df[filter_box(df$longitude, df$latitude, c(-158.3617,21.1968,-157.5117,21.7931)), "island"] <- "Oahu"
 df[filter_box(df$longitude, df$latitude, c(-159.9362, 21.6523, -159.1782, 22.472)), "island"] <- "Kauai"
