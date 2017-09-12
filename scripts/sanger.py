@@ -33,7 +33,7 @@ def trim_sanger(seq, minimum = 10):
 
 wd = get_git_dir()
 
-blast_results = open(wd + '/data/sanger/blast_results4.tsv', 'w+')
+blast_results = open(wd + '/data/sanger/blast_results.tsv', 'w+')
 blast_results.write("s_plate\tprimer\twell\tsname\thit_id\thit_def\taccession\talign_length\tscore\tpositives\tidentities\texpect\tgaps\talignment_fname\tsanger_fname\tstart\tend\n")
 blast_results.flush()
 
@@ -57,7 +57,12 @@ with open(wd + '/data/sanger/seqs.fasta', 'w') as fasta_seqs:
             # Save
             SeqIO.write(sanger, out, 'fastq')
             SeqIO.write(sanger, fasta_seqs, 'fasta')
-            result_handle = NCBIWWW.qblast("blastn", "nt", sanger.format('fasta'))
+            result_handle = NCBIWWW.qblast("blastn",
+                                           "nt",
+                                           sanger.format('fasta'),
+                                           entrez_query='txid6231[orgn]',
+                                           hitlist_size=5,
+                                           megablast=True)
             blast_record = NCBIXML.read(result_handle)
 
             # Output record as text files and data file.
