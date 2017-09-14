@@ -264,4 +264,15 @@ cso <- po_slabels
 #                      approximate_number_of_worms) #%>%
 #        dplyr::filter(!is.na(s_label)) %>% excel(.)
 
+# Merge in blast data
+blast_results <- readr::read_tsv("data/sanger/blast_results.tsv") %>%
+                 dplyr::group_by(s_plate) %>%
+                 dplyr::filter(row_number() == 1)
+
+cso <- cso %>% dplyr::left_join(blast_results, by = c("s_label" = "s_plate"))
+
+
+# Label df with blast results
+df <- df %>% dplyr::mutate(c_elegans_positive = (c_label %in% c_elegans_positive))
+
 save(file = "data/fulcrum/df.Rda", df, cso)

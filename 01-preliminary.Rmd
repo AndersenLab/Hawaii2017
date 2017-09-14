@@ -11,31 +11,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-require(knitr)
-# devtools::install_github("wch/webshot")
-library(webshot)
-library(tidyverse)
-opts_knit$set(progress=TRUE)
-
-opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, print=FALSE, verbose=TRUE)
-opts_chunk$set(results="asis")
-opts_chunk$set(cache=TRUE,cache.path="cache/")
-opts_chunk$set(fig.path="figure/",dev=c("png", "svg"))
-opts_chunk$set(debug = function(before, options, envir) {
-  if (!before) {
-    message(
-      paste(names(envir), as.list(envir),
-            sep = " = ", collapse = "\n"))
-  }
-})
-
-
-# Load Data
-load("data/fulcrum/df.Rda")
-
-# Load utility functions
-source("functions.R")
-
+source("_setup.R")
 ```
 
 # Overall Summary
@@ -57,7 +33,7 @@ map_collection(df %>% dplyr::mutate(s = case_when(worms_on_sample == "Yes" ~ "gr
 
 ## Collection over time
 
-```{r}
+```{r echo=FALSE}
 
 library(gganimate)
 library(shapefiles)
@@ -72,7 +48,7 @@ i <- ggplot(df) +
           plot.title = element_text(lineheight=.8, face="bold", vjust=1)) + 
     coord_equal(ratio=1) # square plot to avoid the distortion
 
-gganimate::gganimate(i, interval = 0.02, filename='output.gif')
+gganimate::gganimate(i, interval = 0.02, filename='figure/collection_animation.mp4')
 
 ```
 

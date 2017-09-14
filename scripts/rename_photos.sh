@@ -1,3 +1,5 @@
+#!/usr/bin/bash
+# Renames photos and generates thumbnails
 cp ../data/photos/id/940fc518-17f6-4e83-809d-0092f5a4c1c2.jpg ../data/photos/c/C-0006.leaf_litter.1.jpg
 cp ../data/photos/id/97ec3843-f7ce-4dc5-8b54-8d2d5de41856.jpg ../data/photos/c/C-0046.rotting_fruit.1.jpg
 cp ../data/photos/id/2ed11eaf-b62c-4fd8-9ed1-b2fc7b3bc48d.jpg ../data/photos/c/C-0038.leaf_litter.1.jpg
@@ -2315,3 +2317,10 @@ cp ../data/photos/id/5f080183-9ac6-4676-b271-8ff13c1ecf3f.jpg ../data/photos/c/C
 cp ../data/photos/id/050274a6-95f6-4d42-b21e-2c7debfb6f55.jpg ../data/photos/c/C-3151.leaf_litter.1.jpg
 cp ../data/photos/id/e4f63f93-2e15-497c-b549-7bdff001479e.jpg ../data/photos/c/C-3143.leaf_litter.1.jpg
 cp ../data/photos/id/f369250b-bc4d-4d53-af51-9fd59f3711bd.jpg ../data/photos/c/C-3209.fungus.1.jpg
+
+# Generate thumbnails
+for i in `ls ../data/photos/c/*.jpg`
+do
+    echo "Processing image $i ..."
+    convert -thumbnail 200 $i ${i/.jpg/}.thumb.jpg
+done

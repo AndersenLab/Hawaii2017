@@ -10,39 +10,19 @@ output:
       collapsed: false
 ---
 
-```{r setup, include=FALSE}
-require(knitr)
-# devtools::install_github("wch/webshot")
-library(webshot)
-library(tidyverse)
-opts_knit$set(progress=TRUE)
+# Setup
 
-opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, print=FALSE, verbose=TRUE)
-opts_chunk$set(results="asis")
-opts_chunk$set(cache=TRUE,cache.path="cache/")
-opts_chunk$set(fig.path="figure/",dev=c("png", "svg"))
-opts_chunk$set(debug = function(before, options, envir) {
-  if (!before) {
-    message(
-      paste(names(envir), as.list(envir),
-            sep = " = ", collapse = "\n"))
-  }
-})
+Use the `_setup.R` script to set up the analysis environment. This will load libraries and set knitr default options.
 
-
-# Load Data
-load("data/fulcrum/df.Rda")
-
-# Load utility functions
-source("functions.R")
-
+```{r setup, include=TRUE, message=FALSE, warning=FALSE}
+source("_setup.R")
 ```
 
 #  Introduction
 
 The hawaii data is stored in `data/df.Rda`. This Rdata file contains the following:
 
-* `df` - a dataframe of C-labels, corresponding S-labels (wide format), and associated data.
+* `df` - a dataframe of C-labels, corresponding S-labels (__wide format__), and associated data.
 * `cso` - a long-format data frame with one row for every S-label and it's corresponding C-label.
 
 These files are generated using `00-load.R`. __Everyone__ should review this file and understand what it is doing before using the data.
@@ -59,18 +39,6 @@ These files are generated using `00-load.R`. __Everyone__ should review this fil
 
 ... and many more variables
 
-# Loading the data
-
-When working with the Hawaii data you will want to load the data, utility functions, and a number of packages:
-
-```{r echo = TRUE}
-library(leaflet)
-library(tidyverse)
-library(knitr)
-library(webshot)
-load("data/fulcrum/df.Rda")
-source("functions.R")
-```
 
 # Utility Functions
 
@@ -84,6 +52,8 @@ The function will filter out collections (C-labels) without a position. You can 
 map_collection(df %>% dplyr::mutate(color = case_when(worms_on_sample == "Yes" ~ "green",
                                                       worms_on_sample == "Tracks" ~ "orange",
                                                       worms_on_sample == "No" ~ "grey")) , "color")
+
+
 ```
 
 <h4>Worms on Sample</h4>
