@@ -37,7 +37,7 @@ sc <- readr::read_csv("data/fulcrum/sample_collection.csv") %>%
   dplyr::select(-created_at) %>%
   # Label substrate moisture issue (moisture meters were on potentially wrong settings at times before 2017-08-09)
   dplyr::mutate(substrate_moisture_ = ifelse(substrate_moisture_ == -1, NA, substrate_moisture_)) %>%
-  dplyr::mutate(substrate_moisture_issue = !(date %within% interval("2017-08-09", "2017-08-31"))) %>%
+  dplyr::mutate(substrate_moisture_issue = !(lubridate::ymd(date) %within% lubridate::interval("2017-08-09", "2017-08-31"))) %>%
   # Two observations had a C > 50; Clearly wrong.
   dplyr::mutate(substrate_temperature_c = ifelse(substrate_temperature_c == 100, NA, substrate_temperature_c)) %>%
   # Fix Fahrenheit observations
@@ -252,6 +252,23 @@ df <-df %>% dplyr::rowwise() %>%
 # redefine
 cso <- po_slabels
 
+# Fold in variables from df to the cso data frame
+cso <- cso %>% dplyr::left_join(
+                                df %>% dplyr::select(c_label,
+                                     substrate,
+                                     landscape,
+                                     sky_view,
+                                     photo_url,
+                                     photo_url_thumb,
+                                     altitude,
+                                     team,
+                                     island,
+                                     location,
+                                     date,
+                                     time,
+                                     FOV),
+                                 by = "c_label"
+                                )
 
 # df for google sheet
 # df %>% dplyr::mutate(s_label = stringr::str_split(s_label, ",")) %>%
@@ -264,7 +281,7 @@ cso <- po_slabels
 #                      approximate_number_of_worms) #%>%
 #        dplyr::filter(!is.na(s_label)) %>% excel(.)
 
-# Merge in blast data
+# Merge in blast data; Take top hit
 blast_results <- readr::read_tsv("data/sanger/blast_results.tsv") %>%
                  dplyr::group_by(s_plate) %>%
                  dplyr::filter(row_number() == 1)

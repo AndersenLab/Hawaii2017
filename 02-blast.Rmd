@@ -20,11 +20,12 @@ output:
 #
 
 source("_setup.R")
+library(sangerseqR)
 ```
 
 ## Blast Results
 
-```{r, results='asis'}
+```{r, results='asis', cache=FALSE}
 
 subchar3 <- function(inputstring, pos){
 string = ""
@@ -41,7 +42,7 @@ return(string)
 plot_sanger <- function(row_) {
     
   fileset = as.data.frame(list(filename = dir("data/sanger/raw", recursive = T)))
-  seq_name = stringr::str_match(row_$seq, "(.*)_")[,2]
+  seq_name = stringr::str_match(row_$seq, "([^_]+_[^_]+_[^_]+)_")[,2]
   seq_name = (fileset %>% dplyr::filter(grepl(seq_name, filename)))$filename
   sanger_fname <- paste0("data/sanger/raw/", seq_name)
   sanger <- sangerseqR::readsangerseq(sanger_fname)
@@ -83,7 +84,7 @@ s <- commandArgs(trailingOnly = TRUE)
 
 # For debugging purposes
 if (length(s) == 0) {
-    s = "S-05117"
+    s = "S-05052"
 }
 
 # Filter blast results for S-plate; Unnest when multiple
