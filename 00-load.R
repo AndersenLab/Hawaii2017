@@ -1,6 +1,7 @@
 library(tidyverse)
 library(lubridate)
 library(geosphere)
+library(googlesheets)
 
 # Set working directory
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
@@ -286,10 +287,22 @@ blast_results <- readr::read_tsv("data/sanger/blast_results.tsv") %>%
                  dplyr::group_by(s_plate) %>%
                  dplyr::filter(row_number() == 1)
 
-cso <- cso %>% dplyr::left_join(blast_results, by = c("s_label" = "s_plate"))
-
-
-# Label df with blast results
-df <- df %>% dplyr::mutate(c_elegans_positive = (c_label %in% c_elegans_positive))
+#==============================#
+# Load manual curation results #
+#==============================#
+cso <- cso %>% dplyr::left_join(blast_results, by = c("s_label" = "s_plate")) %>%
+               dplyr::left_join(
+                 gs_key("1bavR10CEyvWt2zBSNBz-ADXx06b1mDFmuvaaM8Uobi4") %>%
+                   gs_read("Full") %>%
+                   dplyr::select(s_label,
+                                 `genotyped wave 1 (8/22)`,
+                                 `genotyped wave 2 (8/25)`,
+                                 `genotyped wave 3 (9/8)`,
+                                 pcr_rhpositive,
+                                 SpeciesID,
+                                 Notes)
+                 ,
+                 by = "s_label"
+               )
 
 save(file = "data/fulcrum/df.Rda", df, cso)
