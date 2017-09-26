@@ -6,6 +6,9 @@ library(googlesheets)
 # Set working directory
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
+LL <- c("longitude", "latitude")
+LLA <- c("longitude", "latitude", "altitude")
+
 # Team
 RAPTORS <- c("dec@u.northwestern.edu",
              "daehan.lee@northwestern.edu",
@@ -57,6 +60,8 @@ sc <- readr::read_csv("data/fulcrum/sample_collection.csv") %>%
   dplyr::mutate(substrate = ifelse(substrate == "Millipeed",
                                    "Millipede",
                                    substrate))
+
+
 
 # Read in S-labels
 po <- readr::read_csv("data/fulcrum/plating_out.csv") %>%
@@ -148,22 +153,22 @@ po_slabels <- readr::read_csv("data/fulcrum/plating_out_s_labeled_plates.csv") %
                 sampled_by)
 
 issues <- list(
-# C-labels with no S-labels
-c_label_no_slabel = po_slabels %>%
-  dplyr::filter(is.na(s_label)) %>%
-  dplyr::select(c_label),
-dup_c_label = df %>%
-  dplyr::group_by(c_label) %>%
-  dplyr::filter(n() > 1) %>% dplyr::select(c_label, po_id) %>% 
-  dplyr::distinct(.keep_all=T),
-# S-labels with no C-labels
-s_label_no_clabel = po_slabels %>%
-  dplyr::filter(is.na(c_label)) %>%
-  dplyr::select(s_label)
+  # C-labels with no S-labels
+  c_label_no_slabel = po_slabels %>%
+    dplyr::filter(is.na(s_label)) %>%
+    dplyr::select(c_label),
+  dup_c_label = df %>%
+    dplyr::group_by(c_label) %>%
+    dplyr::filter(n() > 1) %>% dplyr::select(c_label, po_id) %>% 
+    dplyr::distinct(.keep_all=T),
+  # S-labels with no C-labels
+  s_label_no_clabel = po_slabels %>%
+    dplyr::filter(is.na(c_label)) %>%
+    dplyr::select(s_label)
 )
 
 po_slabels <- po_slabels %>% 
-              dplyr::filter(!is.na(c_label), !is.na(s_label))
+  dplyr::filter(!is.na(c_label), !is.na(s_label))
 
 # Add Nested S-labels
 df <- dplyr::left_join(df, 
@@ -174,14 +179,167 @@ df <- dplyr::left_join(df,
                                           s_label = paste0(s_label, collapse = ","))) %>%
   dplyr::select(c_label, s_label, s_label_cnt, everything(), -po_id)
 
- 
+
 # Samples collected that were never processed.
 issues[["c_label_never_processed"]] = df %>% 
   dplyr::filter(worms_on_sample == "?") %>%
   dplyr::select(c_label)
 
 
-# Trail coordinates
+# Keep track of points that are corrected
+df$GPS_corrected = F
+
+# * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+# Part 1 Average GPS location of off or missing points    #
+# * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+
+df <-dplyr::arrange(df, team, date, time)
+wrong_pos <- c("C-0804",
+               "C-0240",
+               "C-0742",
+               "C-0549",
+               "C-1066",
+               "C-0642",
+               "C-1203",
+               "C-1132",
+               "C-1308",
+               "C-1319",
+               "C-2598",
+               "C-2599")
+
+sapply(wrong_pos, function(c_label) {
+  row_num <- which(df$c_label == c_label)
+  p1 <- unlist(df[row_num-1, LL])
+  p2 <- unlist(df[row_num+1, LL])
+  # The <<- goes to the global environment.
+  df[row_num, LL] <<- gcIntermediate(p1, p2, n = 1, addStartEnd=FALSE)
+  df[row_num, "altitude"] <<- mean(unlist(df[c(row_num -1, row_num + 1), "altitude"]))
+  df[row_num, c("GPS_corrected")] <<- T
+})
+
+# * * * * * * * * * * * * * * * * * * * * #
+# Part 2: Use Record GPS to correct point #
+# * * * * * * * * * * * * * * * * * * * * #
+wrong_pos <- c("C-1079",
+               "C-1072",
+               "C-0561",
+               "C-0588",
+               "C-0772",
+               "C-0642",
+               "C-1330",
+               "C-1231",
+               "C-0869",
+               "C-0339",
+               "C-1365",
+               "C-2527",
+               "C-2543",
+               "C-2547",
+               "C-1462",
+               "C-1460",
+               "C-1466",
+               "C-2591")
+
+sapply(wrong_pos, function(c_label) {
+  row_num <- which(df$c_label == c_label)
+  # The <<- goes to the global environment.
+  df[row_num, LL] <<- df[row_num, c("record_longitude", "record_latitude")]
+  df[row_num, c("GPS_corrected")] <<- T
+})
+
+#=============================#
+# Part 3: Manual Corrections #
+#===========================#
+
+# Part 3: Manual Corrections
+df[df$c_label %in% c("C-0447", "C-0446") , c("longitude", "latitude", "altitude")]
+corrected_lat_lon <- unlist(df %>% dplyr::filter(c_label %in% c("C-0447", "C-0446")) %>%
+                              dplyr::summarize(longitude = mean(longitude), latitude = mean(latitude)))
+df[df$c_label == "C-1078" | df$c_label == "C-1077", c("longitude", "latitude", "altitude")] <- corrected_lat_lon
+df[df$c_label == "C-1078" | df$c_label == "C-1077", "GPS_corrected"] <- T
+
+#====================================#
+# Part 4: Fix Day 3 sample from Maui #
+#====================================#
+
+df[df$latitude == unlist(df[df$c_label == "C-1222","latitude"]),LL] <- c(-156.150537, 20.854776)
+df[df$latitude == unlist(df[df$c_label == "C-1222","latitude"]), "GPS_corrected"] = T
+
+#====================================#
+# Part 5: Fix Day 3 sample from Maui #
+#====================================#
+
+#Change C-1226, 1230, and 1234 to average between samples C-1238 and C-1222
+avg_1238_1234 <- apply(df[df$c_label %in% c("C-1238", "C-1234"), LL], 2, mean)
+df[df$c_label %in% c("C-1226", "C-1230", "C-1234"), LL] <- avg_1238_1234
+df[df$c_label %in% c("C-1226", "C-1230", "C-1234"), "GPS_corrected"] = T
+
+#====================================#
+# Part 6: Fix Day 3 sample from Maui #
+#====================================#
+
+#Check maui day 4
+#13 samples on Big Island, should be at Waihou Spring Forrest Reserve. Change to estimated gps
+df[df$c_label == "C-2627", LLA] <- df[df$c_label == "C-1487", LLA]
+df[df$c_label == "C-2627", "GPS_corrected"] = T
+
+#=============================#
+# Part 5: Gridsect Positions #
+#===========================#
+
+# Correct a group by another position from the same gridsect
+wrong_pos <- c("C-0708", "C-1064", "C-0617", "C-1063", "C-0616")
+df[df$c_label %in% wrong_pos, c("longitude", "latitude", "altitude")] <- df[df$c_label == "C-1061",c("longitude", "latitude", "altitude")]
+df[df$c_label %in% wrong_pos, "GPS_corrected"] <- T
+
+sapply(wrong_pos, function(c_label) {
+  row_num <- which(df$c_label == c_label)
+  p1 <- unlist(df[row_num-1, LL])
+  p2 <- unlist(df[row_num+1, LL])
+  # The <<- goes to the global environment.
+  df[row_num, LL] <<- gcIntermediate(p1, p2, n = 1, addStartEnd=FALSE)
+  df[row_num, c("GPS_corrected")] <<- T
+})
+
+
+#=============================#
+# Part 6: Fix gridsect values #
+#=============================#
+
+grid_sect_modified = c("C-0567",
+                       "C-0266",
+                       "C-0282",
+                       "C-0271",
+                       "C-0777",
+                       "C-1133",
+                       "C-2605",
+                       "C-2782")
+
+# 20170807 - C-0567 : C2 -> D2
+df[df$c_label == "C-0567", "grid_sect_direction"] = "D"
+# 20170809 - C-0266,0282,0271 : B123 -> D123
+df[df$c_label %in% c("C-0266", "C-0282", "C-0271"), "grid_sect_direction"] = "D"
+# 20170812 - C-0777 : E2 -> F2
+df[df$c_label == "C-0777", "grid_sect_direction"] = "F"
+# 20170813 - C-1133 : B1 -> C1
+df[df$c_label == "C-1133", "grid_sect_direction"] = "C"
+# 20170817 - C-2605 : E3 -> F3
+df[df$c_label == "C-2605", "grid_sect_direction"] = "F"
+#20170817, multiple B3s
+df[df$c_label == "C-2782", "gridsect_radius"] = "1"
+
+df[df$c_label %in% grid_sect_modified, "grid_sect_corrected"] <- T
+df[!(df$c_label %in% grid_sect_modified), "grid_sect_corrected"] <- F
+
+# Convert radius to numeric
+df <- df %>% dplyr::rowwise() %>%
+  dplyr::mutate(gridsect_radius = as.integer(
+    substr(gridsect_radius,1,1)
+  ))
+
+
+#=============================#
+# Part X: Set the islands!    #
+#=============================#
 
 # Create Island Column
 df$island <- "?"
@@ -193,8 +351,7 @@ df[filter_box(df$longitude, df$latitude, c(-156.1346, 18.6619, -154.6985, 20.449
 
 # Fix errant GPS locations from team Moana and Erik
 df[df$island == "BIG_ISLAND" & df$team == "MOANA" , c("latitude", "longitude")] <- NA
-df[df$island == "?", c("latitude", "longitude")] <- NA
-df[df$island == "BIG_ISLAND" & df$team == "MOANA" & !is.na(df$island),"island"] <- "MAUI"
+df[df$island == "BIG_ISLAND" & df$team == "MOANA" & !is.na(df$island), "island"] <- "MAUI"
 
 # Create Trail Column
 df$location <- NA
@@ -208,15 +365,13 @@ df[filter_box(df$longitude, df$latitude, c(-157.8135502338,21.3779082884,-157.79
 df[filter_box(df$longitude, df$latitude, c(-159.613624,22.167098,-159.575601,22.226422)), "location"] <- "Na Pali Coast State Wilderness Park"
 
 
-
-
 # Add photo URL
 df <-df %>% dplyr::rowwise() %>%
   dplyr::group_by(c_label) %>%
   dplyr::mutate(photo = paste0(c_label,
-                              ".",
-                              stringr::str_to_lower(stringr::str_replace_all(substrate, "[^[:alnum:]]", "_")),
-                              ".1.jpg"),
+                               ".",
+                               stringr::str_to_lower(stringr::str_replace_all(substrate, "[^[:alnum:]]", "_")),
+                               ".1.jpg"),
                 photo_url = paste0("https://storage.googleapis.com/elegansvariation.org/photos/hawaii2017/",
                                    c_label,
                                    ".",
@@ -255,21 +410,21 @@ cso <- po_slabels
 
 # Fold in variables from df to the cso data frame
 cso <- cso %>% dplyr::left_join(
-                                df %>% dplyr::select(c_label,
-                                     substrate,
-                                     landscape,
-                                     sky_view,
-                                     photo_url,
-                                     photo_url_thumb,
-                                     altitude,
-                                     team,
-                                     island,
-                                     location,
-                                     date,
-                                     time,
-                                     FOV),
-                                 by = "c_label"
-                                )
+  df %>% dplyr::select(c_label,
+                       substrate,
+                       landscape,
+                       sky_view,
+                       photo_url,
+                       photo_url_thumb,
+                       altitude,
+                       team,
+                       island,
+                       location,
+                       date,
+                       time,
+                       FOV),
+  by = "c_label"
+)
 
 # df for google sheet
 # df %>% dplyr::mutate(s_label = stringr::str_split(s_label, ",")) %>%
@@ -284,25 +439,41 @@ cso <- cso %>% dplyr::left_join(
 
 # Merge in blast data; Take top hit
 blast_results <- readr::read_tsv("data/sanger/blast_results.tsv") %>%
-                 dplyr::group_by(s_plate) %>%
-                 dplyr::filter(row_number() == 1)
+  dplyr::group_by(s_plate) %>%
+  dplyr::filter(row_number() == 1)
 
 #==============================#
 # Load manual curation results #
 #==============================#
 cso <- cso %>% dplyr::left_join(blast_results, by = c("s_label" = "s_plate")) %>%
-               dplyr::left_join(
-                 gs_key("1bavR10CEyvWt2zBSNBz-ADXx06b1mDFmuvaaM8Uobi4") %>%
-                   gs_read("Full") %>%
-                   dplyr::select(s_label,
-                                 `genotyped wave 1 (8/22)`,
-                                 `genotyped wave 2 (8/25)`,
-                                 `genotyped wave 3 (9/8)`,
-                                 pcr_rhpositive,
-                                 SpeciesID,
-                                 Notes)
-                 ,
-                 by = "s_label"
-               )
+  dplyr::left_join(
+    googlesheets::gs_key("1bavR10CEyvWt2zBSNBz-ADXx06b1mDFmuvaaM8Uobi4") %>%
+      googlesheets::gs_read("Full") %>%
+      dplyr::select(s_label,
+                    `genotyped wave 1 (8/22)`,
+                    `genotyped wave 2 (8/25)`,
+                    `genotyped wave 3 (9/8)`,
+                    pcr_rhpositive,
+                    SpeciesID,
+                    Notes)
+    ,
+    by = "s_label"
+  )
+
+
+#=================#
+# Data Correction #
+#=================#
+
+df_out <- df %>%
+  # dplyr::filter(date == "2017-08-12", sampled_by == "briana.rodriguez@northwestern.edu")%>%
+  dplyr::group_by(date, sampled_by) %>%
+  dplyr::arrange(time) %>%
+  dplyr::mutate(corrected_latitude = ifelse(is.na(latitude), (lag(latitude) + lead(latitude))/2, latitude),
+                corrected_longitude = ifelse(is.na(longitude),  (lag(longitude) + lead(longitude))/2,longitude),
+                corrected_island = ifelse(island == "?", lag(island), island),
+                corrected_gps = ifelse(is.na(latitude) | is.na(longitude), TRUE,FALSE)) %>%
+  dplyr::ungroup()
+
 
 save(file = "data/fulcrum/df.Rda", df, cso)
