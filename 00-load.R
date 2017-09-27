@@ -16,7 +16,6 @@ RAPTORS <- c("dec@u.northwestern.edu",
              "stefanzdraljevic2018@u.northwestern.edu")
 
 
-
 filter_box <- function(longitude, latitude, coords) {
   between(longitude, coords[1], coords[3]) &
     between(latitude, coords[2], coords[4]) &
@@ -152,21 +151,6 @@ po_slabels <- readr::read_csv("data/fulcrum/plating_out_s_labeled_plates.csv") %
                 ambient_temperature_c,
                 sampled_by)
 
-issues <- list(
-  # C-labels with no S-labels
-  c_label_no_slabel = po_slabels %>%
-    dplyr::filter(is.na(s_label)) %>%
-    dplyr::select(c_label),
-  dup_c_label = df %>%
-    dplyr::group_by(c_label) %>%
-    dplyr::filter(n() > 1) %>% dplyr::select(c_label, po_id) %>% 
-    dplyr::distinct(.keep_all=T),
-  # S-labels with no C-labels
-  s_label_no_clabel = po_slabels %>%
-    dplyr::filter(is.na(c_label)) %>%
-    dplyr::select(s_label)
-)
-
 po_slabels <- po_slabels %>% 
   dplyr::filter(!is.na(c_label), !is.na(s_label))
 
@@ -181,7 +165,7 @@ df <- dplyr::left_join(df,
 
 
 # Samples collected that were never processed.
-issues[["c_label_never_processed"]] = df %>% 
+c_labels_never_processed = df %>% 
   dplyr::filter(worms_on_sample == "?") %>%
   dplyr::select(c_label)
 
@@ -251,17 +235,23 @@ sapply(wrong_pos, function(c_label) {
 #===========================#
 
 # Part 3: Manual Corrections
-df[df$c_label %in% c("C-0447", "C-0446") , c("longitude", "latitude", "altitude")]
-corrected_lat_lon <- unlist(df %>% dplyr::filter(c_label %in% c("C-0447", "C-0446")) %>%
-                              dplyr::summarize(longitude = mean(longitude), latitude = mean(latitude)))
-df[df$c_label == "C-1078" | df$c_label == "C-1077", c("longitude", "latitude", "altitude")] <- corrected_lat_lon
-df[df$c_label == "C-1078" | df$c_label == "C-1077", "GPS_corrected"] <- T
+
+positions <- df %>% dplyr::filter(c_label %in% c("C-0447", "C-0446")) %>% dplyr::select(longitude, latitude)
+p1 <- positions[1,]
+p2 <- positions[2,]
+corrected_lat_lon <- gcIntermediate(p1, p2, n=1, addStartEnd=F)
+df[df$c_label == "C-1077", LL] <- corrected_lat_lon
+df[df$c_label == "C-1078", LL] <- corrected_lat_lon
+df[df$c_label %in% c("C-1078","C-1077"), "altitude"] <- df[df$c_label %in% c("C-0447") , "altitude"]
+df[df$c_label %in% c("C-1078","C-1077"), "GPS_corrected"] <- T
 
 #====================================#
 # Part 4: Fix Day 3 sample from Maui #
 #====================================#
 
-df[df$latitude == unlist(df[df$c_label == "C-1222","latitude"]),LL] <- c(-156.150537, 20.854776)
+c_label_update <- (df[df$latitude == unlist(df[df$c_label == "C-1222","latitude"]), "c_label"])$c_label
+df[df$c_label %in% c_label_update, "longitude"] <- -156.150537
+df[df$c_label %in% c_label_update, "latitude"] <- 20.854776
 df[df$latitude == unlist(df[df$c_label == "C-1222","latitude"]), "GPS_corrected"] = T
 
 #====================================#
@@ -269,8 +259,13 @@ df[df$latitude == unlist(df[df$c_label == "C-1222","latitude"]), "GPS_corrected"
 #====================================#
 
 #Change C-1226, 1230, and 1234 to average between samples C-1238 and C-1222
-avg_1238_1234 <- apply(df[df$c_label %in% c("C-1238", "C-1234"), LL], 2, mean)
-df[df$c_label %in% c("C-1226", "C-1230", "C-1234"), LL] <- avg_1238_1234
+positions <- df[df$c_label %in% c("C-1238", "C-1222"), LL]
+p1 <- positions[1,]
+p2 <- positions[2,]
+corrected_lat_lon <- gcIntermediate(p1, p2, n=1, addStartEnd=F)
+df[df$c_label == "C-1226", LL] <- corrected_lat_lon
+df[df$c_label == "C-1230", LL] <- corrected_lat_lon
+df[df$c_label == "C-1234", LL] <- corrected_lat_lon
 df[df$c_label %in% c("C-1226", "C-1230", "C-1234"), "GPS_corrected"] = T
 
 #====================================#
@@ -279,16 +274,30 @@ df[df$c_label %in% c("C-1226", "C-1230", "C-1234"), "GPS_corrected"] = T
 
 #Check maui day 4
 #13 samples on Big Island, should be at Waihou Spring Forrest Reserve. Change to estimated gps
-df[df$c_label == "C-2627", LLA] <- df[df$c_label == "C-1487", LLA]
-df[df$c_label == "C-2627", "GPS_corrected"] = T
+errant_latitude <- (df[which(df$c_label == "C-1487"), "latitude"])$latitude
+errant_c_labels <- (df[df$latitude == errant_latitude,"c_label"])$c_label
+corrected_lat_lon <- df[df$c_label == "C-2627", LL]
+sapply(errant_c_labels, function(c_label) {
+  row_num <- which(df$c_label == c_label)
+  # The <<- goes to the global environment.
+  df[row_num, LL] <<- corrected_lat_lon
+  df[row_num, c("GPS_corrected")] <<- T
+})
+
+#====================================#
+# Part 7: Fix Day 5 sample from Maui #
+#====================================#
+
+#Check Maui day 5
+df[df$c_label == "C-2521", LL] <- df[df$c_label == "C-2554", LL]
 
 #=============================#
-# Part 5: Gridsect Positions #
+# Part 8: Gridsect Positions #
 #===========================#
 
 # Correct a group by another position from the same gridsect
 wrong_pos <- c("C-0708", "C-1064", "C-0617", "C-1063", "C-0616")
-df[df$c_label %in% wrong_pos, c("longitude", "latitude", "altitude")] <- df[df$c_label == "C-1061",c("longitude", "latitude", "altitude")]
+df[df$c_label %in% wrong_pos, LLA] <- df[df$c_label == "C-1061", LLA]
 df[df$c_label %in% wrong_pos, "GPS_corrected"] <- T
 
 sapply(wrong_pos, function(c_label) {
@@ -302,10 +311,10 @@ sapply(wrong_pos, function(c_label) {
 
 
 #=============================#
-# Part 6: Fix gridsect values #
+# Part 9: Fix gridsect values #
 #=============================#
 
-grid_sect_modified = c("C-0567",
+gridsect_modified = c("C-0567",
                        "C-0266",
                        "C-0282",
                        "C-0271",
@@ -327,8 +336,8 @@ df[df$c_label == "C-2605", "grid_sect_direction"] = "F"
 #20170817, multiple B3s
 df[df$c_label == "C-2782", "gridsect_radius"] = "1"
 
-df[df$c_label %in% grid_sect_modified, "grid_sect_corrected"] <- T
-df[!(df$c_label %in% grid_sect_modified), "grid_sect_corrected"] <- F
+df$gridsect_corrected = F
+df[df$c_label %in% gridsect_modified, "gridsect_corrected"] <- T
 
 # Convert radius to numeric
 df <- df %>% dplyr::rowwise() %>%
@@ -336,6 +345,66 @@ df <- df %>% dplyr::rowwise() %>%
     substr(gridsect_radius,1,1)
   ))
 
+
+#=======================#
+# Reclassify substrates #
+#=======================#
+
+# * Merge fruit/nut/vegetable
+# * Reclassify rotting in substrate other as rotting wood
+# * Create other rotting category.
+
+substrate_merge <- c("Fruit",
+                     "Rotting fruit",
+                     "Nut",
+                     "Rotting nut",
+                     "Rotting vegetable")
+
+df <- df %>% dplyr::ungroup() %>%
+  dplyr::mutate(substrate = ifelse(substrate %in% substrate_merge, "Fruit/nut", substrate)) %>%
+  dplyr::mutate(substrate = ifelse(grepl("rotting|Rotting", substrate_other), "Rotting wood", substrate)) %>%
+  dplyr::mutate(substrate = ifelse(is.na(substrate), "Other", substrate))
+
+#===============================#
+#  Add flags for runs of values #
+#===============================#
+
+df <- dplyr::arrange(df, team, date, time) %>%
+      dplyr::group_by(team) %>%
+      dplyr::mutate(ambient_run_flag = (ambient_humidity_ == dplyr::lag(ambient_humidity_)) &
+                                           (ambient_temperature_c == dplyr::lag(ambient_temperature_c))
+                                            & (gridsect == "no")) 
+
+#==================#
+# Update altitudes #
+#==================#
+
+# library(geonames)
+# options(geonamesUsername="katiesevans")
+# altitudes <- df %>% dplyr::ungroup() %>%
+#        dplyr::select(c_label, latitude, longitude, altitude) %>%
+#        dplyr::rowwise() %>%
+#        dplyr::mutate(altitude = ifelse(is.na(altitude),
+#                                       geonames::GNsrtm3(latitude, longitude)$srtm3,
+#                                       altitude)
+#                      ) %>%
+#         dplyr::ungroup()
+# save(altitudes, file = "data/altitude.Rda")
+
+load("data/altitude.Rda")
+
+df <- df %>% dplyr::ungroup() %>%
+             dplyr::select(-altitude) %>%
+             dplyr::left_join(altitudes, by = c("c_label", "longitude", "latitude"))
+
+#===================#
+#  Rename variables #
+#===================#
+
+df <- df %>% dplyr::rename(ambient_humidity = ambient_humidity_,
+                     ambient_temperature = ambient_temperature_c,
+                     substrate_moisture = substrate_moisture_,
+                     gridsect_direction = grid_sect_direction)
 
 #=============================#
 # Part X: Set the islands!    #
@@ -364,8 +433,35 @@ df[filter_box(df$longitude, df$latitude, c(-157.8014534712,21.3322593,-157.79812
 df[filter_box(df$longitude, df$latitude, c(-157.8135502338,21.3779082884,-157.7915561199,21.3970691079)), "location"] <- "Ho'omaluhia Botanical Garden"
 df[filter_box(df$longitude, df$latitude, c(-159.613624,22.167098,-159.575601,22.226422)), "location"] <- "Na Pali Coast State Wilderness Park"
 
+#==========================#
+# Setup gridsect variables #
+#==========================#
 
-# Add photo URL
+grids <- df %>% dplyr::filter(gridsect == 'yes') %>%
+  select(c_label, gridsect_direction, gridsect_radius, island, datetime, team, date) %>%
+  dplyr::group_by(c_label) %>%
+  dplyr::distinct()
+
+missing_gridsect <- tibble::tibble(c_label = NA,
+                                   gridsect_direction = "E",
+                                   gridsect_radius = 3,
+                                   island = "Maui",
+                                   datetime = as.POSIXct("2017-08-16 15:56:00 HST"),
+                                   team = "MOANA",
+                                   date = as.Date("2017-08-16"))
+
+grids <- dplyr::bind_rows(grids, missing_gridsect) %>%
+  dplyr::arrange(island, date, team, datetime)
+
+grids$grid_num <- sort(rep(1:20, 19))
+
+df <- df %>% dplyr::left_join(grids %>% dplyr::select(c_label, grid_num), 
+                        by = c("c_label"))
+
+
+#===============#
+# Add photo URL #
+#===============#
 df <-df %>% dplyr::rowwise() %>%
   dplyr::group_by(c_label) %>%
   dplyr::mutate(photo = paste0(c_label,
