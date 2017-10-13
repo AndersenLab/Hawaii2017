@@ -53,11 +53,16 @@ for i in [0, 10, 20, 30]:
     fasta_out = FastaIO.FastaWriter(fasta_seqs, wrap=None)
     seq_set = []
     for s in glob.glob(wd + '/data/sanger/raw/*/*ab1')[11:]:
+        # Only look in confirmationseq
         primer_type = dirname(s).split("/")[-1]
+        folder = basename(dirname(s))
         # Trim sanger sequence
-        sanger, trim_left, trim_right = trim_sanger(SeqIO.read(s, 'abi'), i)
+        seq = SeqIO.read(s, 'abi')
         sname = basename(s).replace('.ab1', '') + "_" + primer_type
         s_plate, primer, well = sname.split("_")[0:3]
+        seq.name = sname
+        seq.id = sname
+        sanger, trim_left, trim_right = trim_sanger(seq, i)
 
         sanger_trimming.write('{}\t{}\t{}\t{}\n'.format(sname, trim_left, trim_right, primer_type))
         if sanger:
