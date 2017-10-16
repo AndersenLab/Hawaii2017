@@ -10,8 +10,7 @@ from tempfile import mktemp
 
 # Configuration
 LABEL_USE = "a_61533" # Type of label
-LABEL_SETS = ['C', 'S'] # Label prefixes (outputs one file for each prefix)
-N_LABELS = 120 # Number of labels
+LABEL_SETS = {'C': 120, 'S': 240} # Label prefixes and counts
 
 
 
@@ -51,10 +50,10 @@ def draw_label_plate(label, width, height, obj):
 
 
 # Generate large labels
-for label in LABEL_SETS:
+for label, n in LABEL_SETS.items():
     specs = LABEL_TYPE[LABEL_USE]
     sheet = labels.Sheet(specs, draw_label_plate, border=False)
-    for i in range(0, N_LABELS):
+    for i in range(0, n):
         _id = label + "-" + str("%04i" % (i + 1))
         sheet.add_label({"ID": _id})
 
