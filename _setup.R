@@ -170,5 +170,36 @@ map_collection <- function(df, color_use) {
 # Data #
 #======#
 
+# Plot gridsect
+plot_gridsect <- function(grid_num) {
+  angles = list(A = 1,
+                B = 2,
+                C = 3,
+                D = 4,
+                E = 5,
+                F = 6)
+  
+  mm <- df %>%
+    dplyr::filter(grid_num == grid_num) %>%
+    dplyr::select(c_label,
+                  s_label,
+                  latitude,
+                  longitude,
+                  grid_num,
+                  gridsect,
+                  gridsect_direction,
+                  gridsect_radius) %>%
+    dplyr::rowwise() %>% 
+    dplyr::mutate(x = gridsect_radius * (sin( (angles[[gridsect_direction]] - 1) * (pi/3) )),
+                  y = gridsect_radius * (cos( (angles[[gridsect_direction]] - 1) * (pi/3) )),
+                  label = paste0(gridsect_direction, gridsect_radius))
+  
+  ggplot(mm, aes(x = x, y = y, label = label)) +
+    geom_point() +
+    geom_text(nudge_x = 0.1, nudge_y = 0.1) +
+    theme_void()
+}
+
+
 
 load("data/fulcrum/df.Rda")
