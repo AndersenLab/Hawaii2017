@@ -200,6 +200,61 @@ plot_gridsect <- function(grid_num) {
     theme_void()
 }
 
+# Elevation Plot
+
+elevation_plot <- function(df) {
+  library(elevatr)
+  m <- df %>% dplyr::mutate(NR = row_number()) %>%
+    dplyr::left_join(., 
+                     dplyr::bind_rows(
+                       lapply(1:(nrow(m) - 1), function(NR) {
+                         ff <- geosphere::gcIntermediate(m[NR,c("longitude", "latitude")],
+                                                         m[NR+1,c("longitude", "latitude")],
+                                                         10,
+                                                         sp = F,
+                                                         addStartEnd = T)
+                         row.names(ff) <- NULL
+                         
+                         as.data.frame(ff) %>%
+                           dplyr::mutate(lead_lon = dplyr::lead(lon),
+                                         lead_lat = dplyr::lead(lat)) %>%
+                           dplyr::rowwise() %>%
+                           dplyr::mutate(NR = NR,
+                                         dist = geosphere::distHaversine(
+                                           c(lon, lat),
+                                           c(lead_lon, lead_lat)
+                                         )
+                           )
+                       })
+                     )
+    ) %>%
+    dplyr::filter(!is.na(dist)) %>%
+    dplyr::rename(x = lon, y = lat) %>%
+    dplyr::mutate(cumulative_distance = cumsum(dist)) %>%
+    dplyr::group_by(c_label) %>%
+    dplyr::mutate(collection_point = (row_number() == 1)) %>%
+    dplyr::ungroup
+  
+  # Fetch elevation
+  prj_dd <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+  xy_elev <- get_elev_point(m %>% 
+                              dplyr::select(x,y) %>%
+                              as.data.frame(),
+                            prj=prj_dd,
+                            src="epqs")
+  
+  # Merge elevation back in.
+  m <- dplyr::bind_cols(m, xy_elev %>% as.data.frame())
+  
+  collection_m = m %>% dplyr::filter(collection_point)
+  
+  ggplot(m) +
+    geom_line(aes(x = cumulative_distance, y = elevation)) +
+    geom_point(aes(x = cumulative_distance, y = elevation), data = collection_m)
+}
+
+
+
 
 
 load("data/fulcrum/df.Rda")
