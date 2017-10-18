@@ -1,0 +1,118 @@
+---
+title: "Hawaii Data Guide"
+author: "Daniel Cook"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: false
+---
+
+# Setup
+
+Use the `_setup.R` script to set up the analysis environment. This will load libraries and set knitr default options.
+
+```{r setup, include=TRUE, message=FALSE, warning=FALSE}
+source("_setup.R")
+```
+
+
+```{r}
+
+
+plot_gridsect <- function(grid_num) {
+  angles = list(A = 1,
+              B = 2,
+              C = 3,
+              D = 4,
+              E = 5,
+              F = 6)
+  
+  mm <- df %>%
+      dplyr::filter(grid_num == grid_num) %>%
+      dplyr::select(c_label,
+                    s_label,
+                    latitude,
+                    longitude,
+                    grid_num,
+                    gridsect,
+                    gridsect_direction,
+                    gridsect_radius) %>%
+      dplyr::rowwise() %>% 
+      dplyr::mutate(x = gridsect_radius * (sin( (angles[[gridsect_direction]] - 1) * (pi/3) )),
+                    y = gridsect_radius * (cos( (angles[[gridsect_direction]] - 1) * (pi/3) )),
+                    label = paste0(gridsect_direction, gridsect_radius))
+
+ggplot(mm, aes(x = x, y = y, label = label)) +
+  geom_point() +
+  geom_text(nudge_x = 0.1, nudge_y = 0.1) +
+   theme_void()
+}
+
+```
+
+#  Introduction
+
+The hawaii data is stored in `data/df.Rda`. This Rdata file contains the following:
+
+* `df` - a dataframe of C-labels, corresponding S-labels (__wide format__), and associated data.
+* `cso` - a long-format data frame with one row for every S-label and it's corresponding C-label.
+
+These files are generated using `00-load.R`. __Everyone__ should review this file and understand what it is doing before using the data.
+
+### df
+
+`r knitr::kable(df %>% dplyr::slice(1:2) %>% dplyr::select(c_label, s_label))`
+
+... and many more variables
+
+### cso
+
+`r knitr::kable(cso %>% dplyr::slice(1:2) %>% dplyr::select(c_label, s_label))`
+
+... and many more variables
+
+
+# Utility Functions
+
+### `map_collection()`
+
+A map can be generated of the data by using the `map_collection()` function. Please examine the function in `functions.R` and understand it before using it.
+
+The function will filter out collections (C-labels) without a position. You can color markers accroding to a variable using a syntax like that below:
+
+```{r leaflet, echo = TRUE}
+map_collection(df %>% dplyr::mutate(color = case_when(worms_on_sample == "Yes" ~ "green",
+                                                      worms_on_sample == "Tracks" ~ "orange",
+                                                      worms_on_sample == "No" ~ "grey")) , "color")
+
+
+map_collection(df %>% dplyr::slice(10:30) %>% dplyr::mutate(color = case_when(worms_on_sample == "Yes" ~ "green",
+                                                      worms_on_sample == "Tracks" ~ "orange",
+                                                      worms_on_sample == "No" ~ "grey")) , "color")
+
+```
+
+<h4>Worms on Sample</h4>
+<div><img src='https://storage.googleapis.com/andersenlab.org/img/green.svg' width='20px'> __Yes__</div>
+<div><img src='https://storage.googleapis.com/andersenlab.org/img/orange.svg' width='20px'> __Tracks__</div>
+<div><img src='https://storage.googleapis.com/andersenlab.org/img/grey.svg' width='20px'> __No__</div>
+
+### `gallery()`
+
+A gallery function is provided for convenience that will output the images from the filtered `df` object. For example:
+
+- - - -
+
+```{r df_out, echo = TRUE}
+
+df %>%
+  dplyr::filter(substrate == "Slug") %>%
+  gallery()
+
+```
+
+- - - -
+
