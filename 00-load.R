@@ -74,7 +74,9 @@ po <- readr::read_csv("data/fulcrum/plating_out.csv") %>%
                 dauers_on_sample,
                 approximate_number_of_worms,
                 po_date = date,
-                po_time = time)
+                po_time = time,
+                po_latitude = latitude,
+                po_longitude = longitude)
 
 # Read in data from photos
 # comm <- paste0("exiftool -coordFormat '%+.6f' -csv -ext jpg ",
