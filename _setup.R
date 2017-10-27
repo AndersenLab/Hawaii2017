@@ -143,10 +143,10 @@ map_collection <- function(df, color_use) {
   #print(df)
   
   attach(df)
-  leaflet::leaflet(data = df, width = "100%") %>% 
+  leaflet::leaflet(data = df, width = "100%", options = list(zoomControl = F)) %>% 
     leaflet::addTiles( 
       paste0( 
-        "https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=", 
+        "https://stamen-tiles-{s}.a.ssl.fastly.net/terrain-background/{z}/{x}/{y}.png",
         jsonlite::read_json("thunderforest.json")$key)  
     ) %>%
     leaflet::addMarkers(~longitude,
