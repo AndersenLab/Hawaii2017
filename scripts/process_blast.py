@@ -13,12 +13,12 @@ def get_git_dir():
 
 
 wd = get_git_dir()
-blast_json = wd + '/data/sanger/blast_results.json.gz'
+blast_json = wd + '/data/sanger/blast_results3.json.gz'
 blast_results = json.load(gzip.open(blast_json))['BlastOutput2']
 
 header_out = False
 
-with open(wd + '/data/sanger/blast_results.tsv', 'w') as f:
+with open(wd + '/data/sanger/blast_results3.tsv', 'w') as f:
     for record in blast_results:
         output = OrderedDict()
         record = record['report']['results']['search']
@@ -28,15 +28,22 @@ with open(wd + '/data/sanger/blast_results.tsv', 'w') as f:
         elif record['query_title'].count("_") == 5:
             s_plate, primer, well, plate, sanger_id, rec = record['query_title'].split("_")
         else:
-            s_plate, primer, well, sanger_id = record['query_title'].split("_")
+            try:
+                s_plate, primer, well, sanger_id = record['query_title'].split("_")
+            except:
+                s_plate, primer = record['query_title'].split("_")
+                well = "NA"
+                sanger_id = "NA"
             plate = "NA"
             rec = "NA"
+        folder = record['query_title'].split("_")[-1]
         output.update({'s_plate': s_plate,
                     'primer': primer,
                     'well': well,
                     'plate': plate,
                     'sanger_id': sanger_id,
-                    'rec': rec})
+                    'rec': rec,
+                    'folder': folder})
         for hit in record['hits'][:3]:
             output.update(hit['description'][0])
             alignment = hit['hsps'][0]

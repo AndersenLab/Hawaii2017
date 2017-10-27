@@ -39,22 +39,22 @@ sc <- readr::read_csv("data/fulcrum/sample_collection.csv") %>%
   dplyr::mutate(date = lubridate::date(created_at)) %>%
   dplyr::select(-created_at) %>%
   # Label substrate moisture issue (moisture meters were on potentially wrong settings at times before 2017-08-09)
-  dplyr::mutate(substrate_moisture_ = ifelse(substrate_moisture_ == -1, NA, substrate_moisture_)) %>%
+  dplyr::mutate(substrate_moisture = ifelse(substrate_moisture == -1, NA, substrate_moisture)) %>%
   dplyr::mutate(substrate_moisture_issue = !(lubridate::ymd(date) %within% lubridate::interval("2017-08-09", "2017-08-31"))) %>%
   # Two observations had a C > 50; Clearly wrong.
-  dplyr::mutate(substrate_temperature_c = ifelse(substrate_temperature_c == 100, NA, substrate_temperature_c)) %>%
+  dplyr::mutate(substrate_temperature = ifelse(substrate_temperature == 100, NA, substrate_temperature)) %>%
   # Fix Fahrenheit observations
-  dplyr::mutate(substrate_temperature_c = ifelse(substrate_temperature_c > 35,
-                                                 FtoC(substrate_temperature_c),
-                                                 substrate_temperature_c)) %>%
+  dplyr::mutate(substrate_temperature = ifelse(substrate_temperature > 35,
+                                               FtoC(substrate_temperature),
+                                               substrate_temperature)) %>%
   # Fix substrate_temp_c when C < 9
-  dplyr::mutate(substrate_temperature_c = ifelse(substrate_temperature_c < 9,
-                                                 NA,
-                                                 substrate_temperature_c)) %>%
+  dplyr::mutate(substrate_temperature = ifelse(substrate_temperature < 9,
+                                               NA,
+                                               substrate_temperature)) %>%
   # Fix ambient temp F to C
-  dplyr::mutate(ambient_temperature_c = ifelse(ambient_temperature_c > 50,
-                                               FtoC(ambient_temperature_c),
-                                               ambient_temperature_c)) %>%
+  dplyr::mutate(ambient_temperature = ifelse(ambient_temperature > 50,
+                                             FtoC(ambient_temperature),
+                                             ambient_temperature)) %>%
   # Fix mispelling
   dplyr::mutate(substrate = ifelse(substrate == "Millipeed",
                                    "Millipede",
@@ -74,7 +74,9 @@ po <- readr::read_csv("data/fulcrum/plating_out.csv") %>%
                 dauers_on_sample,
                 approximate_number_of_worms,
                 po_date = date,
-                po_time = time)
+                po_time = time,
+                po_latitude = latitude,
+                po_longitude = longitude)
 
 # Read in data from photos
 # comm <- paste0("exiftool -coordFormat '%+.6f' -csv -ext jpg ",
@@ -113,10 +115,10 @@ df <- dplyr::full_join(po, sc, by = c("c_label_id" = "fulcrum_id")) %>%
   # In rare cases, lat/lon not with photo; fix.
   dplyr::mutate(latitude = ifelse(is.na(latitude), record_latitude, latitude)) %>%
   dplyr::mutate(longitude = ifelse(is.na(longitude), record_longitude, longitude)) %>%
-  dplyr::mutate(ambient_temperature_c = as.numeric(ambient_temperature_c)) %>%
-  dplyr::mutate(ambient_temperature_c = ifelse(ambient_temperature_c > 70,
-                                               ((5/9)*(ambient_temperature_c-32)),
-                                               ambient_temperature_c)) %>%
+  dplyr::mutate(ambient_temperature = as.numeric(ambient_temperature)) %>%
+  dplyr::mutate(ambient_temperature = ifelse(ambient_temperature > 70,
+                                             ((5/9)*(ambient_temperature-32)),
+                                             ambient_temperature)) %>%
   dplyr::mutate_at(.vars = vars(dplyr::starts_with("gps")),
                    .funs = funs(as.numeric)) %>%
   dplyr::mutate(team = ifelse(sampled_by %in% RAPTORS, "RAPTORS", "MOANA")) %>%
@@ -145,10 +147,10 @@ po_slabels <- readr::read_csv("data/fulcrum/plating_out_s_labeled_plates.csv") %
                 po_time,
                 longitude,
                 latitude,
-                substrate_temperature_c,
-                substrate_moisture_,
-                ambient_humidity_,
-                ambient_temperature_c,
+                substrate_temperature,
+                substrate_moisture,
+                ambient_humidity,
+                ambient_temperature,
                 sampled_by)
 
 po_slabels <- po_slabels %>% 
@@ -315,13 +317,13 @@ sapply(wrong_pos, function(c_label) {
 #=============================#
 
 gridsect_modified = c("C-0567",
-                       "C-0266",
-                       "C-0282",
-                       "C-0271",
-                       "C-0777",
-                       "C-1133",
-                       "C-2605",
-                       "C-2782")
+                      "C-0266",
+                      "C-0282",
+                      "C-0271",
+                      "C-0777",
+                      "C-1133",
+                      "C-2605",
+                      "C-2782")
 
 # 20170807 - C-0567 : C2 -> D2
 df[df$c_label == "C-0567", "grid_sect_direction"] = "D"
@@ -361,7 +363,8 @@ substrate_merge <- c("Fruit",
                      "Rotting vegetable")
 
 df <- df %>% dplyr::ungroup() %>%
-  dplyr::mutate(substrate = ifelse(substrate %in% substrate_merge, "Fruit/nut", substrate)) %>%
+  dplyr::mutate(substrate = ifelse(substrate %in% substrate_merge, "Fruit/nut/vegetable", substrate)) %>%
+  dplyr::mutate(substrate = ifelse(substrate %in% c("Rotting fungus"), "Fungus", substrate)) %>%
   dplyr::mutate(substrate = ifelse(grepl("rotting|Rotting", substrate_other), "Rotting wood", substrate)) %>%
   dplyr::mutate(substrate = ifelse(is.na(substrate), "Other", substrate))
 
@@ -370,10 +373,10 @@ df <- df %>% dplyr::ungroup() %>%
 #===============================#
 
 df <- dplyr::arrange(df, team, date, time) %>%
-      dplyr::group_by(team) %>%
-      dplyr::mutate(ambient_run_flag = (ambient_humidity_ == dplyr::lag(ambient_humidity_)) &
-                                           (ambient_temperature_c == dplyr::lag(ambient_temperature_c))
-                                            & (gridsect == "no")) 
+  dplyr::group_by(team) %>%
+  dplyr::mutate(ambient_run_flag = (ambient_humidity == dplyr::lag(ambient_humidity)) &
+                  (ambient_temperature == dplyr::lag(ambient_temperature))
+                & (gridsect == "no")) 
 
 #==================#
 # Update altitudes #
@@ -394,17 +397,8 @@ df <- dplyr::arrange(df, team, date, time) %>%
 load("data/altitude.Rda")
 
 df <- df %>% dplyr::ungroup() %>%
-             dplyr::select(-altitude) %>%
-             dplyr::left_join(altitudes, by = c("c_label", "longitude", "latitude"))
-
-#===================#
-#  Rename variables #
-#===================#
-
-df <- df %>% dplyr::rename(ambient_humidity = ambient_humidity_,
-                     ambient_temperature = ambient_temperature_c,
-                     substrate_moisture = substrate_moisture_,
-                     gridsect_direction = grid_sect_direction)
+  dplyr::select(-altitude) %>%
+  dplyr::left_join(altitudes, by = c("c_label", "longitude", "latitude"))
 
 #=============================#
 # Part X: Set the islands!    #
@@ -456,7 +450,7 @@ grids <- dplyr::bind_rows(grids, missing_gridsect) %>%
 grids$grid_num <- sort(rep(1:20, 19))
 
 df <- df %>% dplyr::left_join(grids %>% dplyr::select(c_label, grid_num), 
-                        by = c("c_label"))
+                              by = c("c_label"))
 
 
 #===============#
@@ -541,21 +535,17 @@ blast_results <- readr::read_tsv("data/sanger/blast_results.tsv") %>%
 #==============================#
 # Load manual curation results #
 #==============================#
-cso <- cso %>% dplyr::left_join(blast_results, by = c("s_label" = "s_plate")) %>%
+cso <- cso %>% dplyr::left_join(blast_results, by = c("c_label" = "s_plate")) %>%
   dplyr::left_join(
     googlesheets::gs_key("1bavR10CEyvWt2zBSNBz-ADXx06b1mDFmuvaaM8Uobi4") %>%
-      googlesheets::gs_read("Full") %>%
-      dplyr::select(s_label,
-                    `genotyped wave 1 (8/22)`,
-                    `genotyped wave 2 (8/25)`,
-                    `genotyped wave 3 (9/8)`,
-                    pcr_rhpositive,
-                    SpeciesID,
-                    Notes)
-    ,
-    by = "s_label"
+      googlesheets::gs_read("Full"),
+    by = c("c_label", "s_label")
   )
 
+# Merge in missing c-labels that don't exist in cso
+df %>% dplyr::filter(!(c_label %in% cso$c_label))
+cso <- cso %>% dplyr::bind_rows(df %>% dplyr::filter(!(c_label %in% cso$c_label))) %>%
+       dplyr::arrange(c_label, s_label)
 
 #=================#
 # Data Correction #
