@@ -326,15 +326,15 @@ gridsect_modified = c("C-0567",
                       "C-2782")
 
 # 20170807 - C-0567 : C2 -> D2
-df[df$c_label == "C-0567", "grid_sect_direction"] = "D"
+df[df$c_label == "C-0567", "gridsect_direction"] = "D"
 # 20170809 - C-0266,0282,0271 : B123 -> D123
-df[df$c_label %in% c("C-0266", "C-0282", "C-0271"), "grid_sect_direction"] = "D"
+df[df$c_label %in% c("C-0266", "C-0282", "C-0271"), "gridsect_direction"] = "D"
 # 20170812 - C-0777 : E2 -> F2
-df[df$c_label == "C-0777", "grid_sect_direction"] = "F"
+df[df$c_label == "C-0777", "gridsect_direction"] = "F"
 # 20170813 - C-1133 : B1 -> C1
-df[df$c_label == "C-1133", "grid_sect_direction"] = "C"
+df[df$c_label == "C-1133", "gridsect_direction"] = "C"
 # 20170817 - C-2605 : E3 -> F3
-df[df$c_label == "C-2605", "grid_sect_direction"] = "F"
+df[df$c_label == "C-2605", "gridsect_direction"] = "F"
 #20170817, multiple B3s
 df[df$c_label == "C-2782", "gridsect_radius"] = "1"
 
@@ -366,7 +366,8 @@ df <- df %>% dplyr::ungroup() %>%
   dplyr::mutate(substrate = ifelse(substrate %in% substrate_merge, "Fruit/nut/vegetable", substrate)) %>%
   dplyr::mutate(substrate = ifelse(substrate %in% c("Rotting fungus"), "Fungus", substrate)) %>%
   dplyr::mutate(substrate = ifelse(grepl("rotting|Rotting", substrate_other), "Rotting wood", substrate)) %>%
-  dplyr::mutate(substrate = ifelse(is.na(substrate), "Other", substrate))
+  dplyr::mutate(substrate = ifelse(is.na(substrate), "Other", substrate)) %>%
+  dplyr::mutate(substrate = ifelse(substrate == "Soil" & c_label != "C-1154", "Leaf litter", substrate))
 
 #===============================#
 #  Add flags for runs of values #
@@ -464,14 +465,10 @@ df <-df %>% dplyr::rowwise() %>%
                                ".1.jpg"),
                 photo_url = paste0("https://storage.googleapis.com/elegansvariation.org/photos/hawaii2017/",
                                    c_label,
-                                   ".",
-                                   stringr::str_to_lower(stringr::str_replace_all(substrate, "[^[:alnum:]]", "_")),
-                                   ".1.jpg"),
+                                   ".jpg"),
                 photo_url_thumb =  paste0("https://storage.googleapis.com/elegansvariation.org/photos/hawaii2017/",
                                           c_label,
-                                          ".",
-                                          stringr::str_to_lower(stringr::str_replace_all(substrate, "[^[:alnum:]]", "_")),
-                                          ".1.thumb.jpg")) %>%
+                                          ".thumb.jpg")) %>%
   dplyr::ungroup()
 # 
 # photo_comms <- df %>% dplyr::mutate(sample_photo = str_split(sample_photo, ",")) %>%
@@ -512,7 +509,9 @@ cso <- cso %>% dplyr::left_join(
                        location,
                        date,
                        time,
-                       FOV),
+                       FOV,
+                       po_created_by,
+                       dplyr::starts_with("grid")),
   by = "c_label"
 )
 
@@ -538,14 +537,23 @@ blast_results <- readr::read_tsv("data/sanger/blast_results.tsv") %>%
 cso <- cso %>% dplyr::left_join(blast_results, by = c("c_label" = "s_plate")) %>%
   dplyr::left_join(
     googlesheets::gs_key("1bavR10CEyvWt2zBSNBz-ADXx06b1mDFmuvaaM8Uobi4") %>%
-      googlesheets::gs_read("Full"),
-    by = c("c_label", "s_label")
-  )
+      googlesheets::gs_read("Full", na = c("#N/A", "NA", ""),
+    by = c("c_label", "s_label"))
+  ) %>%
+  dplyr::mutate_at(vars("pcr_rhpositive"), funs(as.numeric))
+
+# Fix C-3295
+df[df$c_label == "C-3295", c("longitude", "latitude", "record_longitude", "record_latitude", "date", "datetime")] <- NA
 
 # Merge in missing c-labels that don't exist in cso
-df %>% dplyr::filter(!(c_label %in% cso$c_label))
 cso <- cso %>% dplyr::bind_rows(df %>% dplyr::filter(!(c_label %in% cso$c_label))) %>%
-       dplyr::arrange(c_label, s_label)
+       dplyr::arrange(c_label, s_label) %>%
+       dplyr::mutate(spp_id = ifelse(
+                                      (pcr_rhpositive == 0) | 
+                                      ((pcr_rhpositive == 1) & is.na(spp_id)),
+                                      "Unknown",
+                                      spp_id)
+                     )
 
 #=================#
 # Data Correction #
@@ -561,5 +569,35 @@ df_out <- df %>%
                 corrected_gps = ifelse(is.na(latitude) | is.na(longitude), TRUE,FALSE)) %>%
   dplyr::ungroup()
 
+# remove C-3295 because we don't know what happened with that collection
+remove_cso <- cso$c_label == "C-3295"
+cso <- cso[!remove_cso,]
+remove_df <- df$c_label == "C-3295"
+df <- df[!remove_df,]
+
+# correct substrate moisture values less than or equal to zero
+cso <- cso%>%
+  dplyr::mutate(substrate_moisture = ifelse(substrate_moisture <= 0, NA, substrate_moisture))
+df <- df%>%
+  dplyr::mutate(substrate_moisture = ifelse(substrate_moisture <= 0, NA, substrate_moisture))
+
+#====================#
+# Integrate isotypes #
+#====================#
+
+wi_info_sheet <- gs_key("1V6YHzblaDph01sFDI8YK_fP0H7sVebHQTXypGdiQIjI") %>%
+                 gs_read() %>%
+                 dplyr::select(strain, isotype, c_label, s_label)
+
+cso <- cso %>%
+          dplyr::left_join(wi_info_sheet,
+                           by = c("c_label", "s_label")) %>%
+          dplyr::select(isotype, dplyr::everything())
+
+df <- df %>% dplyr::left_join(wi_info_sheet %>%
+                        dplyr::select(-s_label),
+                        by = c('c_label')) %>%
+       dplyr::select(isotype,
+                     dplyr::everything())
 
 save(file = "data/fulcrum/df.Rda", df, cso)

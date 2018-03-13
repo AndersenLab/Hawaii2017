@@ -254,7 +254,17 @@ elevation_plot <- function(df) {
 }
 
 
+#=================#
+# Species Palette #
+#=================#
 
-
+species_palette <- c("C. elegans" = "#ff0000",
+                     "C. tropicalis" = "#ff8000",
+                     "Panagrolaimus sp." = "#a6aeff",
+                     "Oscheius sp." = "#ffff00",
+                     "C. briggsae" = "#0080ff",
+                     "C. sp. 53" = "#ffffff",
+                     "Unknown" = "#b3b3b3")
+rhabditid_palette <- c("Yes" = "#0080ff", "No" = "#ff0000", "No Worm" = "#000000")
 
 load("data/fulcrum/df.Rda")
